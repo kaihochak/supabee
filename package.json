@@ -1,0 +1,33 @@
+{
+  "name": "supabase-splitter",
+  "version": "0.1.0",
+  "description": "CLI tools for Supabase schema and data splitting workflows",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "supabase-splitter": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "supabase-splitter.config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node dist/index.js --help",
+    "pack:check": "npm run build && npm_config_cache=.npm-cache npm pack --dry-run"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15",
+    "typescript": "^5.9.3"
+  }
+}

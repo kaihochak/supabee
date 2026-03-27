@@ -1,0 +1,29 @@
+{
+  "schema": {
+    "input": "supabase/schemas/prod-schemas.sql",
+    "output": "supabase/schemas/split",
+    "reconstructed": "supabase/schemas/reconstructed-schemas.sql",
+    "keepFiles": []
+  },
+  "data": {
+    "input": "supabase/seeds/prod-data.sql",
+    "output": "supabase/seeds/split",
+    "reconstructed": "supabase/seeds/reconstructed-data.sql",
+    "maxLinesPerFile": 2000,
+    "maxStatementsPerFile": 20,
+    "maxRowsPerInsert": 200,
+    "tableRules": {},
+    "keepFiles": [
+      "800_refresh_materialized_view.sql"
+    ],
+    "ignoreInReconstruct": [
+      "800_refresh_materialized_view.sql"
+    ]
+  },
+  "init": {
+    "seedSqlPaths": [
+      "./seeds/split/*.sql",
+      "./seeds/institutions/seeding_sql/*/*.seed.sql"
+    ]
+  }
+}

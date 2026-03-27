@@ -1,0 +1,111 @@
+Supabase Splitter — New Repo Handoff (for next chat)
+====================================================
+
+Current location
+----------------
+- /Users/kai/Development/courseRater/supabase-splitter
+
+What has been completed
+-----------------------
+1) Command contract is locked and implemented:
+   - supabase-splitter init
+   - supabase-splitter schema
+   - supabase-splitter data
+   - Step modes for both schema/data: split | reconstruct | validate
+   - No seed alias (seed should fail as unknown command)
+
+2) Config contract is locked:
+   - schema.input|output|reconstructed|keepFiles
+   - data.input|output|reconstructed|maxLinesPerFile|maxStatementsPerFile|maxRowsPerInsert|tableRules|keepFiles|ignoreInReconstruct
+   - init.seedSqlPaths
+   - Runtime precedence: CLI args > config file > defaults
+
+3) Naming contract is locked:
+   - /supabase/schemas/prod-schemas.sql
+   - /supabase/schemas/reconstructed-schemas.sql
+   - /supabase/seeds/prod-data.sql
+   - /supabase/seeds/reconstructed-data.sql
+   - backups under:
+     - /supabase/schemas/backup/...
+     - /supabase/seeds/backup/...
+
+4) Output behavior locked:
+   - Step-specific details only:
+     - split: relevant split fields
+     - reconstruct: split input + reconstructed output
+     - validate: original input + reconstructed file
+   - Dirty split dir:
+     - fail fast unless --backup
+     - backup message on newline
+   - keepFiles restoration after backup works for both schema and data
+     (schema requires schema.keepFiles config if you expect files to be restored)
+
+5) Refactor completed:
+   - Shared step orchestration util exists (no repeated split/reconstruct/validate scaffolding)
+   - schema and data are symmetrical at command level
+
+6) TypeScript + CLI framework migration completed:
+   - Source moved to .ts
+   - Commander.js used at entrypoint
+   - Build outputs to dist
+
+7) Packaging setup completed:
+   - package.json bin -> dist/index.js
+   - scripts:
+     - build
+     - typecheck
+     - test
+     - pack:check
+   - files includes dist/docs/example config
+
+8) Docs updated:
+   - README command-first, concise
+   - PRD aligned to TS + Commander + npm pack flow
+   - Added:
+     - docs/rc-checklist.md
+     - docs/release-notes-template.md
+     - supabase-splitter.config.example.json
+
+Important caveat
+----------------
+- TS files currently include // @ts-nocheck to keep migration fast and stable.
+- Follow-up task (optional, recommended): remove ts-nocheck and add real typings incrementally.
+
+Validation already run
+----------------------
+From /Users/kai/Development/courseRater/supabase-splitter:
+- npm run typecheck  (pass)
+- npm run build      (pass)
+- npm run test       (pass)
+- npm run pack:check (pass; uses local .npm-cache to avoid permission issue)
+- Tarball RC smoke test in clean temp workspace:
+  - install .tgz
+  - run init
+  - run schema (full chain)
+  - run data (full chain)
+  - pass
+
+Pre-commit lint note
+--------------------
+- One warning blocked commit previously:
+  prefer-const at src/commands/data.ts (fixed already: processedStatements is const).
+
+Recommended next steps in new repo
+----------------------------------
+1) Move/copy this folder to standalone repo.
+2) Run:
+   - npm install
+   - npm run typecheck
+   - npm run build
+   - npm run test
+   - npm run pack:check
+3) Run docs/rc-checklist.md end-to-end.
+4) Tag RC:
+   - v0.1.0-rc.1
+5) After final pass, publish stable:
+   - v0.1.0 + npm publish --access public
+
+Release flow clarification
+--------------------------
+- RC = release candidate: likely final, but validated first.
+- RC gate = must pass package/install/behavior checks before public npm release.

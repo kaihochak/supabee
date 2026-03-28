@@ -9,7 +9,6 @@
   },
   "files": [
     "dist",
-    "docs",
     "supabase-splitter.config.example.json",
     "README.md",
     "LICENSE"

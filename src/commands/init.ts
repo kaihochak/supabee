@@ -17,6 +17,7 @@ import {
   recommended,
 } from '../lib/ui.js';
 import { readToolConfig } from '../lib/config.js';
+import { DEFAULT_TOOL_CONFIG_PATH } from '../lib/constants.js';
 
 const SPLIT_SEED_PATH = './seeds/split/*.sql';
 const SEED_FILES_NOTE = 'This is to configure the data files you will use for seeding the database';
@@ -261,15 +262,69 @@ async function confirmChanges(changes) {
   return { accepted };
 }
 
+function ensureConfigFile() {
+  const configDest = path.resolve(process.cwd(), DEFAULT_TOOL_CONFIG_PATH);
+  if (fs.existsSync(configDest)) return false;
+
+  // Look for example config bundled with the package
+  const examplePaths = [
+    path.resolve(process.cwd(), 'node_modules/supabase-splitter/supabase-splitter.config.example.json'),
+    path.resolve(import.meta.dirname, '../../supabase-splitter.config.example.json'),
+  ];
+
+  for (const examplePath of examplePaths) {
+    if (fs.existsSync(examplePath)) {
+      fs.copyFileSync(examplePath, configDest);
+      console.log(ok(`Created ${DEFAULT_TOOL_CONFIG_PATH} from example config`));
+      console.log(info('Review and adjust the config values for your project.'));
+      console.log('');
+      return true;
+    }
+  }
+
+  // Fallback: write minimal default config
+  const minimal = {
+    schema: {
+      input: 'supabase/schemas/prod-schemas.sql',
+      output: 'supabase/schemas/split',
+      reconstructed: 'supabase/schemas/reconstructed-schemas.sql',
+      keepFiles: [],
+    },
+    data: {
+      input: 'supabase/seeds/prod-data.sql',
+      output: 'supabase/seeds/split',
+      reconstructed: 'supabase/seeds/reconstructed-data.sql',
+      maxLinesPerFile: 2000,
+      maxStatementsPerFile: 20,
+      maxRowsPerInsert: 200,
+      tableRules: {},
+      keepFiles: [],
+      ignoreInReconstruct: [],
+    },
+    init: {
+      seedSqlPaths: ['./seeds/split/*.sql'],
+    },
+  };
+  fs.writeFileSync(configDest, JSON.stringify(minimal, null, 2) + '\n', 'utf8');
+  console.log(ok(`Created ${DEFAULT_TOOL_CONFIG_PATH} with defaults`));
+  console.log(info('Review and adjust the config values for your project.'));
+  console.log('');
+  return true;
+}
+
 export async function runInitCommand(args) {
   const options = parseOptions(args);
 
   if (options.help) {
     console.log(`init command:
   supabase-splitter init
+
+Creates supabase-splitter.config.json (if missing) and updates supabase/config.toml.
 `);
     return;
   }
+
+  ensureConfigFile();
 
   const configPath = path.resolve(process.cwd(), 'supabase/config.toml');
   const toolConfig = readToolConfig();

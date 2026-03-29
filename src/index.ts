@@ -20,22 +20,32 @@ function buildStepArgs(step, reconstructed, options) {
 const program = new Command();
 program
   .name('supabase-splitter')
-  .description('CLI tools for Supabase schema and data splitting workflows')
+  .description(
+    'Split large Supabase schema/data dumps into organized, version-control-friendly SQL files.',
+  )
   .showHelpAfterError('(run with --help for usage)')
   .addHelpText(
     'after',
     `
+Getting started:
+  1. npx supabase-splitter init          # generate config, update config.toml
+  2. supabase link                        # link to your Supabase project (if not already linked)
+  3. supabase db dump > supabase/schemas/prod-schemas.sql
+  4. supabase db dump --data-only > supabase/seeds/prod-data.sql
+  5. npx supabase-splitter schema         # split → reconstruct → validate
+  6. npx supabase-splitter data           # split → reconstruct → validate
+
 Examples:
   supabase-splitter init
-  supabase-splitter data
   supabase-splitter schema
+  supabase-splitter data
   supabase-splitter data split --input supabase/seeds/prod-data.sql --output supabase/seeds/split --backup
 `,
   );
 
 program
   .command('init')
-  .description('Update supabase/config.toml [db.seed].sql_paths from tool config')
+  .description('Generate config file (if missing) and update supabase/config.toml seed paths')
   .action(async () => {
     await runInitCommand([]);
   });

@@ -1,146 +1,142 @@
 # Supabase Splitter
 
-CLI for splitting Supabase schema/data dumps into ordered files.
+Split large Supabase schema and data dump files into smaller, organized, version-control-friendly SQL files.
 
-Tech stack:
-- TypeScript
-- Commander.js (CLI parser/framework)
+## Why?
 
-## Quick Start
+When you run `supabase db dump`, you get a single monolithic SQL file that can be thousands of lines long. This makes it hard to:
+
+- **Review changes** in pull requests (one giant diff vs. focused per-table diffs)
+- **Navigate** your database structure (finding a specific table in 5000 lines vs. opening a file)
+- **Seed selectively** (load only what you need instead of everything)
+- **Resolve merge conflicts** (conflicts in small files vs. one massive file)
+
+`supabase-splitter` takes those dump files and splits them into categorized, ordered files that reconstruct back to the original — verified by built-in validation.
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) >= 18
+- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) installed and authenticated
+
+## Install
 
 ```bash
-# Update supabase/config.toml based on supabase-splitter.config.json
-supabase-splitter init
+npm install --save-dev supabase-splitter
+```
 
-# Dump production schema and data
+## Setup
+
+### 1. Initialize config
+
+Run `init` to generate `supabase-splitter.config.json` (if it doesn't exist) and update `supabase/config.toml` seed paths:
+
+```bash
+npx supabase-splitter init
+```
+
+Review the generated `supabase-splitter.config.json` and adjust paths/limits for your project.
+
+### 2. Link your Supabase project
+
+If you haven't already, link your local repo to your Supabase project. This is required before you can dump schema or data:
+
+```bash
+supabase link
+```
+
+You'll be prompted for your project ref and database password. See the [Supabase CLI docs](https://supabase.com/docs/reference/cli/supabase-link) for details.
+
+### 3. Dump schema and data
+
+```bash
 supabase db dump > supabase/schemas/prod-schemas.sql
 supabase db dump --data-only > supabase/seeds/prod-data.sql
-
-# Run full chain for each command (`split -> reconstruct -> validate`)
-supabase-splitter schema
-supabase-splitter data
 ```
 
-## Help
+### 4. Split, reconstruct, and validate
 
 ```bash
-supabase-splitter --help
-supabase-splitter init --help
-supabase-splitter schema --help
-supabase-splitter data --help
+npx supabase-splitter schema
+npx supabase-splitter data
 ```
 
-## Init Command
+Each command runs the full chain: **split** → **reconstruct** → **validate**.
 
-`init` updates `supabase/config.toml` `[db.seed].sql_paths` using `init.seedSqlPaths` from `supabase-splitter.config.json`.
+## Commands
 
-It does **not** create `supabase-splitter.config.json`.
+### `init`
+
+Creates `supabase-splitter.config.json` if missing, then updates `supabase/config.toml` `[db.seed].sql_paths` so Supabase knows where to find your split seed files.
 
 ```bash
-supabase-splitter init
+npx supabase-splitter init
 ```
 
-## Schema Command
+### `schema`
+
+Splits a schema dump into categorized folders:
+
+```
+supabase/schemas/split/
+├── 00_extensions/
+├── 01_setup/
+├── 02_types/
+├── 03_functions/
+├── 04_tables/
+├── 05_views/
+├── 06_constraints/
+├── 07_indexes/
+├── 08_foreign_keys/
+├── 09_rls/
+├── 10_permissions/
+├── 11_ownership/
+└── 12_others/
+```
 
 ```bash
-supabase-splitter schema
+# Full chain (split → reconstruct → validate)
+npx supabase-splitter schema
+
+# Individual steps
+npx supabase-splitter schema split
+npx supabase-splitter schema reconstruct
+npx supabase-splitter schema validate
 ```
 
-Default behavior: runs `split -> reconstruct -> validate` for schema.
+### `data`
 
-Run a single step:
+Splits a data dump into per-table files with configurable row/statement limits:
 
 ```bash
-supabase-splitter schema split
-supabase-splitter schema reconstruct
-supabase-splitter schema validate
+# Full chain (split → reconstruct → validate)
+npx supabase-splitter data
+
+# Individual steps
+npx supabase-splitter data split
+npx supabase-splitter data reconstruct
+npx supabase-splitter data validate
 ```
 
-Override paths:
+### Overriding paths
+
+All commands accept `--input` and `--output` flags:
 
 ```bash
-supabase-splitter schema split --input new-path/schemas/prod-schemas.sql --output new-path/schemas/split
-supabase-splitter schema reconstruct --input new-path/schemas/split --output new-path/schemas/reconstructed-schemas.sql
-supabase-splitter schema validate --input new-path/schemas/prod-schemas.sql new-path/schemas/reconstructed-schemas.sql
+npx supabase-splitter schema split --input path/to/schema.sql --output path/to/split
+npx supabase-splitter data split --input path/to/data.sql --output path/to/split --backup
 ```
 
-Backup dirty split directory before split:
+Use `--backup` to save the existing split directory before overwriting.
 
-```bash
-supabase-splitter schema split --backup
-```
+## Configuration
 
-`schema.keepFiles` files are restored from backup into the new split directory.
+`supabase-splitter` reads `supabase-splitter.config.json` from your project root.
 
-## Data Command
+**Precedence:** CLI flags > config file > built-in defaults.
 
-```bash
-supabase-splitter data
-```
+If the config file is missing, built-in defaults are used. Run `npx supabase-splitter init` to generate one.
 
-Default behavior: runs `split -> reconstruct -> validate` for data.
-
-Run a single step:
-
-```bash
-supabase-splitter data split
-supabase-splitter data reconstruct
-supabase-splitter data validate
-```
-
-Override paths:
-
-```bash
-supabase-splitter data split --input new-path/seeds/prod-data.sql --output new-path/seeds/split
-supabase-splitter data reconstruct --input new-path/seeds/split --output new-path/seeds/reconstructed-data.sql
-supabase-splitter data validate --input new-path/seeds/prod-data.sql new-path/seeds/reconstructed-data.sql
-```
-
-Backup dirty split directory before split:
-
-```bash
-supabase-splitter data split --backup
-```
-
-`data.keepFiles` files are restored from backup into the new split directory.
-
-## Config
-
-`supabase-splitter` reads `supabase-splitter.config.json` from repo root.
-
-If this file is missing, built-in defaults are used.
-
-`init` reads this file; it does not generate it.
-
-Precedence: CLI args > config file > built-in defaults.
-
-Start from the example file:
-
-```bash
-cp supabase-splitter.config.example.json supabase-splitter.config.json
-```
-
-## Development
-
-```bash
-npm install
-npm run typecheck
-npm run build
-npm run test
-npm run pack:check
-```
-
-RC gate checklist: `docs/rc-checklist.md`
-
-## Flags
-
-Both `schema` and `data` support:
-
-- `--input`: source SQL file
-- `--output`: output path (split dir for `split`, reconstructed file for `reconstruct`/`validate`)
-- `--backup`: backup dirty split directory before running split
-
-For `validate`, you can pass reconstructed path either as `--output <path>` or as the second positional argument.
+### Full config reference
 
 ```json
 {
@@ -158,19 +154,35 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
     "maxStatementsPerFile": 20,
     "maxRowsPerInsert": 200,
     "tableRules": {},
-    "keepFiles": ["800_refresh_materialized_view.sql"],
-    "ignoreInReconstruct": ["800_refresh_materialized_view.sql"]
+    "keepFiles": [],
+    "ignoreInReconstruct": []
   },
   "init": {
-    "seedSqlPaths": [
-      "./seeds/split/*.sql",
-      "./seeds/institutions/seeding_sql/*/*.seed.sql"
-    ]
+    "seedSqlPaths": ["./seeds/split/*.sql"]
   }
 }
 ```
 
-`tableRules` example:
+| Key | Description |
+|-----|-------------|
+| `schema.input` | Path to your schema dump file |
+| `schema.output` | Directory for split schema files |
+| `schema.reconstructed` | Path for the reconstructed schema (used in validation) |
+| `schema.keepFiles` | Files in the split dir to preserve across re-splits (restored from backup) |
+| `data.input` | Path to your data dump file |
+| `data.output` | Directory for split data files |
+| `data.reconstructed` | Path for the reconstructed data (used in validation) |
+| `data.maxLinesPerFile` | Max lines per split file (default: 2000) |
+| `data.maxStatementsPerFile` | Max INSERT statements per file (default: 20) |
+| `data.maxRowsPerInsert` | Max rows per INSERT statement (default: 200) |
+| `data.tableRules` | Per-table overrides (see below) |
+| `data.keepFiles` | Files in the split dir to preserve across re-splits |
+| `data.ignoreInReconstruct` | Files to skip during reconstruction |
+| `init.seedSqlPaths` | Paths written to `supabase/config.toml` `[db.seed].sql_paths` |
+
+### Table-specific rules
+
+Override limits or skip specific tables:
 
 ```json
 {
@@ -187,4 +199,23 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
     }
   }
 }
+```
+
+## Help
+
+```bash
+npx supabase-splitter --help
+npx supabase-splitter init --help
+npx supabase-splitter schema --help
+npx supabase-splitter data --help
+```
+
+## Development
+
+```bash
+npm install
+npm run build
+npm run typecheck
+npm run test
+npm run pack:check
 ```

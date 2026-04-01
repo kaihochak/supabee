@@ -1,6 +1,6 @@
 # Internal RC Checklist
 
-Use this checklist before publishing `supabase-splitter` to npm.
+Use this checklist before publishing `supabee` to npm.
 
 ## Build + Package
 
@@ -15,15 +15,15 @@ Use this checklist before publishing `supabase-splitter` to npm.
 1. Create package tarball:
    - `npm_config_cache=.npm-cache npm pack`
 2. In a clean test workspace:
-   - `npm install /absolute/path/to/supabase-splitter-<version>.tgz`
+   - `npm install /absolute/path/to/supabee-<version>.tgz`
 3. Validate command entry:
-   - `npx supabase-splitter --help`
+   - `npx supabee --help`
 
 ## Behavior Parity Checks
 
-- `npx supabase-splitter init`
-- `npx supabase-splitter schema` (full chain)
-- `npx supabase-splitter data` (full chain)
+- `npx supabee init`
+- `npx supabee schema` (full chain)
+- `npx supabee data` (full chain)
 - Verify backup behavior:
   - dirty output fails fast without `--backup`
   - `--backup` creates timestamped backup folder

@@ -1,15 +1,35 @@
 {
-  "name": "supabase-splitter",
+  "name": "supabee",
   "version": "0.1.1",
-  "description": "CLI tools for Supabase schema and data splitting workflows",
+  "description": "CLI tools for local Supabase schema/data workflows",
   "license": "MIT",
+  "author": "Kai Ho Chak",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaihochak/supabee.git"
+  },
+  "homepage": "https://github.com/kaihochak/supabee",
+  "bugs": {
+    "url": "https://github.com/kaihochak/supabee/issues"
+  },
+  "keywords": [
+    "supabase",
+    "database",
+    "schema",
+    "sql",
+    "cli",
+    "devtools",
+    "local"
+  ],
   "type": "module",
   "bin": {
+    "supabee": "dist/index.js",
     "supabase-splitter": "dist/index.js"
   },
   "files": [
     "dist",
     "supabase-splitter.config.example.json",
+    "supabee.config.example.json",
     "README.md",
     "LICENSE"
   ],
@@ -18,6 +38,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node dist/index.js --help",
     "pack:check": "npm run build && npm_config_cache=.npm-cache npm pack --dry-run"

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
@@ -18,11 +17,24 @@ import {
 } from '../lib/ui.js';
 import { readToolConfig } from '../lib/config.js';
 import { DEFAULT_TOOL_CONFIG_PATH } from '../lib/constants.js';
+import type { ToolConfig } from '../lib/constants.js';
 
 const SPLIT_SEED_PATH = './seeds/split/*.sql';
 const SEED_FILES_NOTE = 'This is to configure the data files you will use for seeding the database';
 
-function parseOptions(args) {
+type InitOptions = { help: boolean };
+type SeedSection = { start: number; end: number };
+type SeedValues = { enabled?: string; sql_paths?: string };
+type PlanChange = {
+  title: string;
+  description?: string;
+  before: string | null;
+  after: string;
+  apply: (targetLines: string[]) => void;
+  detectBefore?: (sourceLines: string[]) => string | null;
+};
+
+function parseOptions(args: string[]): InitOptions {
   const options = { help: false };
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--help' || args[i] === '-h') {
@@ -32,7 +44,7 @@ function parseOptions(args) {
   return options;
 }
 
-function getSeedSection(lines) {
+function getSeedSection(lines: string[]): SeedSection {
   const start = lines.findIndex((line) => line.trim() === '[db.seed]');
   if (start === -1) {
     return { start: -1, end: -1 };
@@ -49,14 +61,14 @@ function getSeedSection(lines) {
   return { start, end };
 }
 
-function getCurrentSeedValues(content) {
+function getCurrentSeedValues(content: string): SeedValues {
   const lines = content.split('\n');
   const section = getSeedSection(lines);
   if (section.start === -1) {
     return {};
   }
 
-  const values = {};
+  const values: SeedValues = {};
   for (let i = section.start + 1; i < section.end; i += 1) {
     const line = lines[i].trim();
     if (!line || line.startsWith('#')) continue;
@@ -70,7 +82,7 @@ function getCurrentSeedValues(content) {
   return values;
 }
 
-function printCurrentSeedValues(values) {
+function printCurrentSeedValues(values: SeedValues) {
   if (!values.enabled && !values.sql_paths) return;
   console.log(sectionWithNote(title('Current [db.seed] values'), SEED_FILES_NOTE));
   const expectedEnabled = 'true';
@@ -93,27 +105,27 @@ function printCurrentSeedValues(values) {
   console.log('');
 }
 
-function parseTomlArrayString(value) {
+function parseTomlArrayString(value?: string): string[] {
   if (!value) return [];
   const matches = value.matchAll(/['"]([^'"]+)['"]/g);
   return Array.from(matches, (match) => match[1]);
 }
 
-function toTomlArrayLiteral(values) {
+function toTomlArrayLiteral(values: string[]): string {
   return `[${values.map((value) => `'${value}'`).join(', ')}]`;
 }
 
-function dedupePaths(paths) {
+function dedupePaths(paths: string[]): string[] {
   return Array.from(new Set(paths.filter((entry) => typeof entry === 'string' && entry.trim() !== '')));
 }
 
-function getConfiguredSeedSqlPaths(toolConfig) {
+function getConfiguredSeedSqlPaths(toolConfig: ToolConfig): string[] | null {
   const configured = toolConfig?.init?.seedSqlPaths;
   if (!Array.isArray(configured) || configured.length === 0) return null;
   return dedupePaths(configured);
 }
 
-function buildSeedSqlPathsTarget(existingSqlPaths, configuredSeedSqlPaths) {
+function buildSeedSqlPathsTarget(existingSqlPaths: string | undefined, configuredSeedSqlPaths: string[] | null): string {
   if (configuredSeedSqlPaths && configuredSeedSqlPaths.length > 0) {
     return `sql_paths = ${toTomlArrayLiteral(configuredSeedSqlPaths)}`;
   }
@@ -123,16 +135,16 @@ function buildSeedSqlPathsTarget(existingSqlPaths, configuredSeedSqlPaths) {
   return `sql_paths = ${toTomlArrayLiteral(merged)}`;
 }
 
-function ensureTrailingNewlineGap(lines) {
+function ensureTrailingNewlineGap(lines: string[]) {
   if (lines.length === 0) return;
   if (lines[lines.length - 1].trim() !== '') {
     lines.push('');
   }
 }
 
-function buildPlan(content, configuredSeedSqlPaths) {
+function buildPlan(content: string, configuredSeedSqlPaths: string[] | null): { lines: string[]; changes: PlanChange[] } {
   const lines = content.split('\n');
-  const plan = [];
+  const plan: PlanChange[] = [];
   const currentValues = getCurrentSeedValues(content);
 
   const section = getSeedSection(lines);
@@ -142,7 +154,7 @@ function buildPlan(content, configuredSeedSqlPaths) {
       title: 'Add [db.seed] section',
       before: null,
       after: '[db.seed]',
-      apply: (targetLines) => {
+      apply: (targetLines: string[]) => {
         const current = getSeedSection(targetLines);
         if (current.start !== -1) return;
         ensureTrailingNewlineGap(targetLines);
@@ -156,7 +168,7 @@ function buildPlan(content, configuredSeedSqlPaths) {
     title: 'Enable [db.seed].enabled',
     before: null,
     after: enabledTarget,
-    apply: (targetLines) => {
+    apply: (targetLines: string[]) => {
       const current = getSeedSection(targetLines);
       if (current.start === -1) return;
 
@@ -169,7 +181,7 @@ function buildPlan(content, configuredSeedSqlPaths) {
 
       targetLines.splice(current.end, 0, enabledTarget);
     },
-    detectBefore: (sourceLines) => {
+    detectBefore: (sourceLines: string[]) => {
       const current = getSeedSection(sourceLines);
       if (current.start === -1) return null;
       for (let i = current.start + 1; i < current.end; i += 1) {
@@ -187,7 +199,7 @@ function buildPlan(content, configuredSeedSqlPaths) {
     description: SEED_FILES_NOTE,
     before: null,
     after: sqlPathsTarget,
-    apply: (targetLines) => {
+    apply: (targetLines: string[]) => {
       const current = getSeedSection(targetLines);
       if (current.start === -1) return;
 
@@ -200,7 +212,7 @@ function buildPlan(content, configuredSeedSqlPaths) {
 
       targetLines.splice(current.end, 0, sqlPathsTarget);
     },
-    detectBefore: (sourceLines) => {
+    detectBefore: (sourceLines: string[]) => {
       const current = getSeedSection(sourceLines);
       if (current.start === -1) return null;
       for (let i = current.start + 1; i < current.end; i += 1) {
@@ -212,7 +224,7 @@ function buildPlan(content, configuredSeedSqlPaths) {
     },
   });
 
-  const effective = [];
+  const effective: PlanChange[] = [];
   for (const item of plan) {
     const before = item.detectBefore ? item.detectBefore(lines) : item.before;
 
@@ -232,9 +244,9 @@ function buildPlan(content, configuredSeedSqlPaths) {
   return { lines, changes: effective };
 }
 
-async function confirmChanges(changes) {
+async function confirmChanges(changes: PlanChange[]): Promise<{ accepted: PlanChange[] }> {
   const rl = readline.createInterface({ input, output });
-  const accepted = [];
+  const accepted: PlanChange[] = [];
 
   try {
     for (const change of changes) {
@@ -268,8 +280,8 @@ function ensureConfigFile() {
 
   // Look for example config bundled with the package
   const examplePaths = [
-    path.resolve(process.cwd(), 'node_modules/supabase-splitter/supabase-splitter.config.example.json'),
-    path.resolve(import.meta.dirname, '../../supabase-splitter.config.example.json'),
+    path.resolve(process.cwd(), 'node_modules/supabee/supabee.config.example.json'),
+    path.resolve(import.meta.dirname, '../../supabee.config.example.json'),
   ];
 
   for (const examplePath of examplePaths) {
@@ -312,14 +324,14 @@ function ensureConfigFile() {
   return true;
 }
 
-export async function runInitCommand(args) {
+export async function runInitCommand(args: string[]) {
   const options = parseOptions(args);
 
   if (options.help) {
     console.log(`init command:
-  supabase-splitter init
+  supabee init
 
-Creates supabase-splitter.config.json (if missing) and updates supabase/config.toml.
+Creates supabee.config.json (if missing) and updates supabase/config.toml.
 `);
     return;
   }

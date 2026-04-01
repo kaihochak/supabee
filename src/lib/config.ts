@@ -1,41 +1,86 @@
-// @ts-nocheck
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULTS, DEFAULT_TOOL_CONFIG_PATH } from './constants.js';
-import { error as errText } from './ui.js';
+import {
+  DEFAULTS,
+  DEFAULT_TOOL_CONFIG_PATH,
+  LEGACY_TOOL_CONFIG_PATH,
+  type DataTableRule,
+  type ToolConfig,
+} from './constants.js';
+import { error as errText, warn as warnText } from './ui.js';
 
-function asObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+type UnknownRecord = Record<string, unknown>;
+
+export type SchemaConfig = {
+  inputFile: string;
+  outputDir: string;
+  reconstructedFile: string;
+  keepFiles: string[];
+};
+
+export type DataLimits = {
+  maxLinesPerFile: number;
+  maxStatementsPerFile: number;
+  maxRowsPerInsert: number;
+};
+
+export type DataConfig = {
+  inputFile: string;
+  outputDir: string;
+  reconstructedFile: string;
+  limits: DataLimits;
+  tableRules: Record<string, DataTableRule>;
+  keepFiles: string[];
+  ignoreInReconstruct: string[];
+};
+
+function asObject(value: unknown): UnknownRecord {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as UnknownRecord) : {};
 }
 
-function asNumber(value, fallback) {
-  return Number.isFinite(value) && value > 0 ? value : fallback;
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-function asStringArray(value, fallback = []) {
+function asStringArray(value: unknown, fallback: string[] = []): string[] {
   if (!Array.isArray(value)) return fallback;
-  return value.filter((entry) => typeof entry === 'string' && entry.trim() !== '');
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
 }
 
-function asTableRules(value) {
-  return asObject(value);
+function asTableRules(value: unknown): Record<string, DataTableRule> {
+  return asObject(value) as Record<string, DataTableRule>;
 }
 
-export function readToolConfig() {
-  const configPath = path.resolve(process.cwd(), DEFAULT_TOOL_CONFIG_PATH);
-  if (!fs.existsSync(configPath)) return {};
+export function readToolConfig(): ToolConfig {
+  const primaryConfigPath = path.resolve(process.cwd(), DEFAULT_TOOL_CONFIG_PATH);
+  const legacyConfigPath = path.resolve(process.cwd(), LEGACY_TOOL_CONFIG_PATH);
+
+  let configPath: string | null = null;
+  if (fs.existsSync(primaryConfigPath)) {
+    configPath = primaryConfigPath;
+  } else if (fs.existsSync(legacyConfigPath)) {
+    configPath = legacyConfigPath;
+    console.log(
+      warnText(
+        `Using legacy config file ${LEGACY_TOOL_CONFIG_PATH}. Consider renaming it to ${DEFAULT_TOOL_CONFIG_PATH}.`,
+      ),
+    );
+  }
+
+  if (!configPath) return {};
 
   try {
     const raw = fs.readFileSync(configPath, 'utf8');
     const parsed = JSON.parse(raw);
-    return asObject(parsed);
-  } catch (error) {
-    console.error(errText(`Invalid tool config JSON at ${configPath}: ${error.message}`));
+    return asObject(parsed) as ToolConfig;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(errText(`Invalid tool config JSON at ${configPath}: ${message}`));
     process.exit(1);
   }
 }
 
-function resolveSchemaConfig(toolConfig, cliOptions) {
+function resolveSchemaConfig(toolConfig: ToolConfig, cliOptions: Partial<{ input: string; output: string; reconstructed: string }>): SchemaConfig {
   const configured = asObject(toolConfig.schema);
   const merged = { ...DEFAULTS.schema, ...configured };
 
@@ -51,7 +96,7 @@ function resolveSchemaConfig(toolConfig, cliOptions) {
   };
 }
 
-function resolveDataConfig(toolConfig, cliOptions) {
+function resolveDataConfig(toolConfig: ToolConfig, cliOptions: Partial<{ input: string; output: string; reconstructed: string }>): DataConfig {
   const configured = asObject(toolConfig.data);
   const merged = { ...DEFAULTS.data, ...configured };
 
@@ -74,7 +119,9 @@ function resolveDataConfig(toolConfig, cliOptions) {
   };
 }
 
-export function resolveCommandConfig(commandName, cliOptions) {
+export function resolveCommandConfig(commandName: 'schema', cliOptions: Partial<{ input: string; output: string; reconstructed: string }>): SchemaConfig;
+export function resolveCommandConfig(commandName: 'data', cliOptions: Partial<{ input: string; output: string; reconstructed: string }>): DataConfig;
+export function resolveCommandConfig(commandName: string, cliOptions: Partial<{ input: string; output: string; reconstructed: string }>) {
   const toolConfig = readToolConfig();
   if (commandName === 'schema') {
     return resolveSchemaConfig(toolConfig, cliOptions);

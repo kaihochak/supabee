@@ -1,6 +1,6 @@
 # Legacy Splitter Reference (Baseline)
 
-This document defines the **old/legacy splitter method** currently implemented inside `courseRater`, and is the baseline for parity checks against `supabase-splitter`.
+This document defines the **old/legacy splitter method** from the original application repository, and is the baseline for parity checks against `supabee`.
 
 ## Source of Truth (Legacy)
 
@@ -98,9 +98,9 @@ If the input seed file is missing, the script can fail after cleanup.
 4. Confirm expected seed files are regenerated.
 5. Confirm `supabase db reset` works with generated legacy outputs.
 
-## Parity Target for `supabase-splitter`
+## Parity Target for `supabee`
 
-`supabase-splitter` passes parity when it matches legacy behavior for:
+`supabee` passes parity when it matches legacy behavior for:
 
 - schema split/reconstruct/validate correctness
 - seed split ordering and loadability

@@ -1,5 +1,10 @@
-// @ts-nocheck
-export async function runSubcommandMode(commandName, subcommand, handlers) {
+type Handlers = {
+  split: () => Promise<unknown>;
+  reconstruct: () => Promise<unknown>;
+  validate: () => Promise<boolean>;
+};
+
+export async function runSubcommandMode(commandName: string, subcommand: string | null, handlers: Handlers) {
   const validSubcommands = ['split', 'reconstruct', 'validate'];
 
   if (!subcommand) {

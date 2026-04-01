@@ -1,4 +1,8 @@
-# Supabase Splitter
+# Supabee
+
+[![CI](https://github.com/kaihochak/supabee/actions/workflows/ci.yml/badge.svg)](https://github.com/kaihochak/supabee/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/supabee)](https://www.npmjs.com/package/supabee)
+[![license](https://img.shields.io/npm/l/supabee)](./LICENSE)
 
 Split large Supabase schema and data dump files into smaller, organized, version-control-friendly SQL files.
 
@@ -11,7 +15,7 @@ When you run `supabase db dump`, you get a single monolithic SQL file that can b
 - **Seed selectively** (load only what you need instead of everything)
 - **Resolve merge conflicts** (conflicts in small files vs. one massive file)
 
-`supabase-splitter` takes those dump files and splits them into categorized, ordered files that reconstruct back to the original — verified by built-in validation.
+`supabee` takes those dump files and splits them into categorized, ordered files that reconstruct back to the original — verified by built-in validation.
 
 ## Prerequisites
 
@@ -21,20 +25,20 @@ When you run `supabase db dump`, you get a single monolithic SQL file that can b
 ## Install
 
 ```bash
-npm install --save-dev supabase-splitter
+npm install --save-dev supabee
 ```
 
 ## Setup
 
 ### 1. Initialize config
 
-Run `init` to generate `supabase-splitter.config.json` (if it doesn't exist) and update `supabase/config.toml` seed paths:
+Run `init` to generate `supabee.config.json` (if it doesn't exist) and update `supabase/config.toml` seed paths:
 
 ```bash
-npx supabase-splitter init
+npx supabee init
 ```
 
-Review the generated `supabase-splitter.config.json` and adjust paths/limits for your project.
+Review the generated `supabee.config.json` and adjust paths/limits for your project.
 
 ### 2. Link your Supabase project
 
@@ -56,8 +60,8 @@ supabase db dump --data-only > supabase/seeds/prod-data.sql
 ### 4. Split, reconstruct, and validate
 
 ```bash
-npx supabase-splitter schema
-npx supabase-splitter data
+supabee schema
+supabee data
 ```
 
 Each command runs the full chain: **split** → **reconstruct** → **validate**.
@@ -66,10 +70,10 @@ Each command runs the full chain: **split** → **reconstruct** → **validate**
 
 ### `init`
 
-Creates `supabase-splitter.config.json` if missing, then updates `supabase/config.toml` `[db.seed].sql_paths` so Supabase knows where to find your split seed files.
+Creates `supabee.config.json` if missing, then updates `supabase/config.toml` `[db.seed].sql_paths` so Supabase knows where to find your split seed files.
 
 ```bash
-npx supabase-splitter init
+supabee init
 ```
 
 ### `schema`
@@ -95,12 +99,12 @@ supabase/schemas/split/
 
 ```bash
 # Full chain (split → reconstruct → validate)
-npx supabase-splitter schema
+supabee schema
 
 # Individual steps
-npx supabase-splitter schema split
-npx supabase-splitter schema reconstruct
-npx supabase-splitter schema validate
+supabee schema split
+supabee schema reconstruct
+supabee schema validate
 ```
 
 ### `data`
@@ -109,12 +113,12 @@ Splits a data dump into per-table files with configurable row/statement limits:
 
 ```bash
 # Full chain (split → reconstruct → validate)
-npx supabase-splitter data
+supabee data
 
 # Individual steps
-npx supabase-splitter data split
-npx supabase-splitter data reconstruct
-npx supabase-splitter data validate
+supabee data split
+supabee data reconstruct
+supabee data validate
 ```
 
 ### Overriding paths
@@ -122,19 +126,21 @@ npx supabase-splitter data validate
 All commands accept `--input` and `--output` flags:
 
 ```bash
-npx supabase-splitter schema split --input path/to/schema.sql --output path/to/split
-npx supabase-splitter data split --input path/to/data.sql --output path/to/split --backup
+supabee schema split --input path/to/schema.sql --output path/to/split
+supabee data split --input path/to/data.sql --output path/to/split --backup
 ```
 
 Use `--backup` to save the existing split directory before overwriting.
 
 ## Configuration
 
-`supabase-splitter` reads `supabase-splitter.config.json` from your project root.
+`supabee` reads `supabee.config.json` from your project root.
 
 **Precedence:** CLI flags > config file > built-in defaults.
 
-If the config file is missing, built-in defaults are used. Run `npx supabase-splitter init` to generate one.
+If the config file is missing, built-in defaults are used. Run `supabee init` to generate one.
+
+Legacy support: `supabase-splitter.config.json` is still recognized, but `supabee.config.json` is preferred.
 
 ### Full config reference
 
@@ -201,21 +207,33 @@ Override limits or skip specific tables:
 }
 ```
 
+## Flags
+
+Both `schema` and `data` support:
+
+- `--input`: source SQL file
+- `--output`: output path (split dir for `split`, reconstructed file for `reconstruct`/`validate`)
+- `--backup`: backup dirty split directory before running split
+
+For `validate`, you can pass reconstructed path either as `--output <path>` or as the second positional argument.
+
 ## Help
 
 ```bash
-npx supabase-splitter --help
-npx supabase-splitter init --help
-npx supabase-splitter schema --help
-npx supabase-splitter data --help
+supabee --help
+supabee init --help
+supabee schema --help
+supabee data --help
 ```
 
 ## Development
 
 ```bash
 npm install
-npm run build
 npm run typecheck
+npm run build
 npm run test
 npm run pack:check
 ```
+
+RC gate checklist: `docs/rc-checklist.md`

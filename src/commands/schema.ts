@@ -1,10 +1,9 @@
-// @ts-nocheck
 import fs from 'node:fs';
 import path from 'node:path';
 import { stat, readdir } from 'node:fs/promises';
 import crypto from 'node:crypto';
 import { ok, info, error as errText } from '../lib/ui.js';
-import { resolveCommandConfig } from '../lib/config.js';
+import { resolveCommandConfig, type SchemaConfig } from '../lib/config.js';
 import { prepareSplitOutputDir } from '../lib/output.js';
 import { resolveStepPaths } from '../lib/command-contract.js';
 import { runStepCommand } from '../lib/step-command.js';
@@ -23,9 +22,17 @@ const SCHEMA_FOLDERS = {
   permissions: '10_permissions',
   ownership: '11_ownership',
   others: '12_others',
-};
+} as const;
+type SchemaCategory = keyof typeof SCHEMA_FOLDERS;
+type SchemaFolders = Record<SchemaCategory, string>;
+type ParsedStatement = { sql: string; lineStart: number; lineEnd: number };
+type CategorizedStatement = { sql: string; name: string; filename: string; lineRange: string };
+type CategorizedStatements = Record<SchemaCategory, CategorizedStatement[]>;
+type RuntimeSchemaConfig = SchemaConfig & { indexPath: string; folders: SchemaFolders };
+type IndexedStatement = { category: SchemaCategory; filename: string; lineRange: string; path: string };
+type ReconstructFile = { startLine: number; content: string };
 
-function buildRuntimeConfig(options) {
+function buildRuntimeConfig(options: Partial<{ input: string; output: string; reconstructed: string }>): RuntimeSchemaConfig {
   const resolved = resolveCommandConfig('schema', options);
   return {
     ...resolved,
@@ -34,17 +41,17 @@ function buildRuntimeConfig(options) {
   };
 }
 
-function sanitizeForFilename(name) {
+function sanitizeForFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 }
 
-function createFilename(name, seqNum) {
+function createFilename(name: string, seqNum: number): string {
   return `${String(seqNum).padStart(4, '0')}_${sanitizeForFilename(name)}.sql`;
 }
 
-function extractStatements(sql) {
+function extractStatements(sql: string): CategorizedStatements {
   const normalizedSql = sql.replace(/\r\n/g, '\n');
-  const results = {
+  const results: CategorizedStatements = {
     extensions: [],
     setup: [],
     types: [],
@@ -60,7 +67,7 @@ function extractStatements(sql) {
     others: [],
   };
 
-  const statements = [];
+  const statements: ParsedStatement[] = [];
   let current = '';
   let inDollarQuote = false;
   let dollarTag = '';
@@ -125,7 +132,7 @@ function extractStatements(sql) {
     const firstLine = categorySql.split('\n')[0].trim();
     const lineRange = `${statement.lineStart}-${statement.lineEnd}`;
 
-    const push = (category, objectName) => {
+    const push = (category: SchemaCategory, objectName: string) => {
       const seqNum = seqNumbers[category]++;
       results[category].push({
         sql: statement.sql,
@@ -187,22 +194,23 @@ function extractStatements(sql) {
   return results;
 }
 
-async function writeStatements(config, statements) {
+async function writeStatements(config: RuntimeSchemaConfig, statements: CategorizedStatements) {
   for (const folder of Object.values(config.folders)) {
     await fs.promises.mkdir(path.join(config.outputDir, folder), { recursive: true });
   }
 
-  const allStatements = [];
+  const allStatements: IndexedStatement[] = [];
   for (const [category, items] of Object.entries(statements)) {
+    const typedCategory = category as SchemaCategory;
     for (const item of items) {
       allStatements.push({
-        category,
+        category: typedCategory,
         filename: item.filename,
         lineRange: item.lineRange,
-        path: path.join(config.folders[category], item.filename),
+        path: path.join(config.folders[typedCategory], item.filename),
       });
 
-      const filePath = path.join(config.outputDir, config.folders[category], item.filename);
+      const filePath = path.join(config.outputDir, config.folders[typedCategory], item.filename);
       const metadataComment = '-- Original SQL from lines ' + item.lineRange + ' in prod.sql\n\n';
       await fs.promises.writeFile(filePath, metadataComment + item.sql, 'utf8');
     }
@@ -218,9 +226,9 @@ async function writeStatements(config, statements) {
   console.log(ok(`Wrote ${indexData.length} index entries: ${config.indexPath}`));
 }
 
-async function reconstructSql(config) {
+async function reconstructSql(config: RuntimeSchemaConfig) {
   let reconstructed = '';
-  const processedFiles = [];
+  const processedFiles: ReconstructFile[] = [];
 
   for (const folder of Object.values(config.folders)) {
     const folderPath = path.join(config.outputDir, folder);
@@ -255,7 +263,7 @@ async function reconstructSql(config) {
   console.log(ok(`Reconstructed SQL written to: ${config.reconstructedFile}`));
 }
 
-async function validateReconstruction(config) {
+async function validateReconstruction(config: RuntimeSchemaConfig): Promise<boolean> {
   const originalContent = await fs.promises.readFile(config.inputFile, 'utf8');
   const reconstructedContent = await fs.promises.readFile(config.reconstructedFile, 'utf8');
 
@@ -273,7 +281,7 @@ async function validateReconstruction(config) {
   return false;
 }
 
-export async function runSchemaCommand(args) {
+export async function runSchemaCommand(args: string[]) {
   await runStepCommand(args, {
     commandName: 'schema',
     commandDisplayName: 'Schema',

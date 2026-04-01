@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from 'node:fs';
 import path from 'node:path';
 import { info } from './ui.js';
@@ -13,8 +12,9 @@ async function hasAnyFiles(dirPath) {
   try {
     const entries = await fs.promises.readdir(dirPath);
     return entries.length > 0;
-  } catch (error) {
-    if (error.code === 'ENOENT') return false;
+  } catch (error: unknown) {
+    const errno = error as NodeJS.ErrnoException;
+    if (errno.code === 'ENOENT') return false;
     throw error;
   }
 }
@@ -34,9 +34,9 @@ function matchesKeepPattern(relativePath, pattern) {
   return baseName === pattern;
 }
 
-async function collectFiles(rootDir, currentDir = rootDir) {
+async function collectFiles(rootDir: string, currentDir = rootDir): Promise<string[]> {
   const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
-  const files = [];
+  const files: string[] = [];
   for (const entry of entries) {
     const absolutePath = path.join(currentDir, entry.name);
     if (entry.isDirectory()) {
@@ -48,7 +48,17 @@ async function collectFiles(rootDir, currentDir = rootDir) {
   return files;
 }
 
-async function restoreKeepFiles({ outputDir, backupPath, keepFiles, label }) {
+async function restoreKeepFiles({
+  outputDir,
+  backupPath,
+  keepFiles,
+  label,
+}: {
+  outputDir: string;
+  backupPath: string | null;
+  keepFiles: string[];
+  label: string;
+}) {
   if (!backupPath || !Array.isArray(keepFiles) || keepFiles.length === 0) return 0;
   const existingFiles = await collectFiles(backupPath);
   const restoreTargets = existingFiles.filter((relativePath) =>
@@ -68,7 +78,12 @@ async function restoreKeepFiles({ outputDir, backupPath, keepFiles, label }) {
   return restoreTargets.length;
 }
 
-export async function prepareSplitOutputDir(outputDir, backup, label, options = {}) {
+export async function prepareSplitOutputDir(
+  outputDir: string,
+  backup: boolean,
+  label: string,
+  options: { keepFiles?: string[] } = {},
+) {
   const { keepFiles = [] } = options;
   const isDirty = await hasAnyFiles(outputDir);
   if (!isDirty) {

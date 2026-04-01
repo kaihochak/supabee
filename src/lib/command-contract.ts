@@ -1,7 +1,35 @@
-// @ts-nocheck
-export function parseStepCommandArgs(args) {
+export type StepName = 'split' | 'reconstruct' | 'validate';
+
+export type StepCommandOptions = {
+  input: string | null;
+  output: string | null;
+  backup: boolean;
+  help: boolean;
+  positional: string[];
+};
+
+export type ParsedStepCommandArgs = {
+  subcommand: string | null;
+  options: StepCommandOptions;
+  isUnknownSubcommand: boolean;
+};
+
+export type ResolvedStepPaths = {
+  inputFile: string;
+  outputDir: string;
+  reconstructedFile: string;
+};
+
+type ResolveStepPathsInput = {
+  defaults: ResolvedStepPaths;
+  options: StepCommandOptions;
+  subcommand: string | null;
+  step: StepName;
+};
+
+export function parseStepCommandArgs(args: string[]): ParsedStepCommandArgs {
   const knownSubcommands = new Set(['split', 'reconstruct', 'validate']);
-  let subcommand = null;
+  let subcommand: string | null = null;
   let cursor = 0;
 
   if (args[0] && !args[0].startsWith('-')) {
@@ -9,7 +37,7 @@ export function parseStepCommandArgs(args) {
     cursor = 1;
   }
 
-  const options = {
+  const options: StepCommandOptions = {
     input: null,
     output: null,
     backup: false,
@@ -43,10 +71,10 @@ export function parseStepCommandArgs(args) {
 
 export function printStepCommandHelp(commandName) {
   console.log(`${commandName} command:
-  supabase-splitter ${commandName}
+  supabee ${commandName}
 
 Advanced:
-  supabase-splitter ${commandName} [split|reconstruct|validate] [--input <path>] [--output <dir>] [--backup]
+  supabee ${commandName} [split|reconstruct|validate] [--input <path>] [--output <dir>] [--backup]
 
 Notes:
   - No subcommand runs: split -> reconstruct -> validate
@@ -56,7 +84,7 @@ Notes:
 `);
 }
 
-export function resolveStepPaths({ defaults, options, subcommand, step }) {
+export function resolveStepPaths({ defaults, options, subcommand, step }: ResolveStepPathsInput): ResolvedStepPaths {
   const inputFromCli = options.input;
   const outputFromCli = options.output;
   const positionalReconstructed = options.positional[0];

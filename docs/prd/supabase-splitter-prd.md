@@ -2,8 +2,8 @@
 
 ## Overview
 Build a public SDK and CLI in a separate repo that productizes the existing splitter workflows currently implemented in:
-- `/Users/kai/Development/courseRater/supabase/schemas/schema-splitter.js`
-- `/Users/kai/Development/courseRater/supabase/seeds/seed-splitter.js`
+- `supabase/schemas/schema-splitter.js`
+- `supabase/seeds/seed-splitter.js`
 
 ## Problem
 Teams need:
@@ -24,7 +24,7 @@ Beyond portability, splitting dump artifacts into ordered, focused files provide
 
 ## Goals
 1. Extract current splitter capabilities into a reusable CLI.
-2. Validate SDK works in `/Users/kai/Development/courseRater` before public publish.
+2. Validate SDK works in the target integration repository before public publish.
 3. Publish v0.1.0 publicly on npm.
 
 ## Non-Goals (MVP)
@@ -63,14 +63,14 @@ Input generation responsibility (outside splitter CLI):
 - `supabase db dump --data-only > supabase/seeds/prod-data.sql`
 
 ## Success Metrics
-1. SDK can run against `/Users/kai/Development/courseRater` with parity to current scripts.
+1. SDK can run against the target integration repository with parity to current scripts.
 2. `supabase db reset` succeeds using generated seed output.
 3. At least one public npm release consumed from a clean install.
 
 ## Acceptance Criteria
 1. Schema split/reconstruct roundtrip preserves SQL fidelity.
 2. Data split generates ordered SQL files usable by Supabase seed loader.
-3. Integration test in `/Users/kai/Development/courseRater` passes:
+3. Integration test in the target integration repository passes:
 - install packed tarball
 - run schema commands
 - run data command
@@ -90,7 +90,7 @@ Implementation note:
 
 ## Config Model (MVP+)
 
-Add a project config file (example: `supabase-splitter.config.json`) with optional keys:
+Add a project config file (example: `supabee.config.json`) with optional keys:
 
 - `schema.input` (default input file)
 - `schema.output` (default output root)
@@ -127,10 +127,10 @@ Mitigation:
 2. M2: Implement `data split` and `schema split`.
 3. M3: Implement `schema reconstruct` + `schema validate`.
 4. M4: Implement `data reconstruct` + `data validate`.
-5. M5: Integration in `/Users/kai/Development/courseRater` via tarball.
+5. M5: Integration in target repository via tarball.
 6. M6: npm publish 0.1.0.
 
 ## Release Plan
 1. Internal validation via `npm pack` and local install.
 2. Public npm publish (`--access public`).
-3. Post-publish smoke test from npm install in `/Users/kai/Development/courseRater`.
+3. Post-publish smoke test from npm install in the target repository.

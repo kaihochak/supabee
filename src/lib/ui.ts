@@ -1,4 +1,3 @@
-// @ts-nocheck
 import process from 'node:process';
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -13,18 +12,19 @@ const COLORS = {
   red: '\x1b[31m',
   white: '\x1b[37m',
 };
+type ColorName = keyof typeof COLORS;
 
-function paint(text, color) {
+function paint(text: string, color: ColorName) {
   if (!useColor) return text;
   return `${COLORS[color]}${text}${COLORS.reset}`;
 }
 
-function style(text, ...styles) {
+function style(text: string, ...styles: ColorName[]) {
   if (!useColor) return text;
   return `${styles.map((name) => COLORS[name]).join('')}${text}${COLORS.reset}`;
 }
 
-function formatLabel(label, color) {
+function formatLabel(label: string, color: ColorName) {
   return style(`[${label}]`, 'bold', color);
 }
 
@@ -32,7 +32,7 @@ function line(char = '-', width = 54) {
   return char.repeat(width);
 }
 
-export function section(title) {
+export function section(title: string) {
   const header = style(` ${title} `, 'bold', 'white');
   if (!useColor) {
     return `\n${line('=')}\n${header}\n${line('=')}`;
@@ -40,7 +40,7 @@ export function section(title) {
   return `\n${paint(line('-'), 'dim')}\n${header}\n${paint(line('-'), 'dim')}`;
 }
 
-export function sectionWithNote(title, note) {
+export function sectionWithNote(title: string, note: string) {
   const header = style(` ${title} `, 'bold', 'white');
   if (!useColor) {
     return `\n${line('=')}\n${header}\n${note}\n${line('=')}`;
@@ -48,46 +48,46 @@ export function sectionWithNote(title, note) {
   return `\n${paint(line('-'), 'dim')}\n${header}\n${note}\n${paint(line('-'), 'dim')}`;
 }
 
-export function info(message) {
+export function info(message: string) {
   return useColor ? paint(message, 'dim') : message;
 }
 
-export function ok(message) {
+export function ok(message: string) {
   return `${formatLabel('SUCCESS', 'green')} ${message}`;
 }
 
-export function warn(message) {
+export function warn(message: string) {
   return `${formatLabel('WARN', 'yellow')} ${message}`;
 }
 
-export function error(message) {
+export function error(message: string) {
   return `${formatLabel('ERROR', 'red')} ${message}`;
 }
 
-export function title(message) {
+export function title(message: string) {
   return useColor ? style(`[${message}]`, 'bold', 'cyan') : `[${message}]`;
 }
 
-export function pass(message) {
+export function pass(message: string) {
   return useColor ? `${paint('✓', 'green')} ${message}` : `✓ ${message}`;
 }
 
-export function fail(message) {
+export function fail(message: string) {
   return useColor ? `${paint('x', 'red')} ${message}` : `x ${message}`;
 }
 
-export function note(message) {
+export function note(message: string) {
   return `${formatLabel('NOTE', 'yellow')} ${message}`;
 }
 
-export function recommended(message) {
+export function recommended(message: string) {
   return useColor ? paint(message, 'yellow') : message;
 }
 
-export function diffRemove(message) {
+export function diffRemove(message: string) {
   return useColor ? `${paint('-', 'red')} ${paint(message, 'red')}` : `- ${message}`;
 }
 
-export function diffAdd(message) {
+export function diffAdd(message: string) {
   return useColor ? `${paint('+', 'green')} ${paint(message, 'green')}` : `+ ${message}`;
 }

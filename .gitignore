@@ -3,3 +3,7 @@ dist
 .npm-cache
 .DS_Store
 *.log
+*.tgz
+.env
+.env.local
+.env.*.local

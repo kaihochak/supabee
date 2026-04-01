@@ -1,16 +1,28 @@
-// @ts-nocheck
 import fs from 'node:fs';
 import path from 'node:path';
 import { info, ok, error as errText } from '../lib/ui.js';
-import { resolveCommandConfig } from '../lib/config.js';
+import { resolveCommandConfig, type DataConfig } from '../lib/config.js';
 import { prepareSplitOutputDir } from '../lib/output.js';
 import { runStepCommand } from '../lib/step-command.js';
 
-function countLines(str) {
+type ParsedSeedContent = {
+  tableContent: Record<string, string[]>;
+  sequenceLines: string[];
+  lineCount: number;
+};
+
+type EffectiveTableLimits = {
+  maxLinesPerFile: number;
+  maxStatementsPerFile: number;
+  maxRowsPerInsert: number;
+  skip: boolean;
+};
+
+function countLines(str: string): number {
   return str.split('\n').length;
 }
 
-function countRowsInInsertStatement(statement) {
+function countRowsInInsertStatement(statement: string): number {
   const lines = statement.split('\n');
   let valuesStartIndex = -1;
   for (let i = 0; i < lines.length; i += 1) {
@@ -53,7 +65,7 @@ function countRowsInInsertStatement(statement) {
   return rowCount;
 }
 
-function breakDownInsertStatement(statement, tableName, maxRowsPerInsert) {
+function breakDownInsertStatement(statement: string, tableName: string, maxRowsPerInsert: number): string[] {
   if (!Number.isFinite(maxRowsPerInsert) || maxRowsPerInsert <= 0) return [statement];
 
   const lines = statement.split('\n');
@@ -70,7 +82,7 @@ function breakDownInsertStatement(statement, tableName, maxRowsPerInsert) {
   const header = lines.slice(0, valuesStartIndex + 1).join('\n');
   const valueLines = lines.slice(valuesStartIndex + 1);
 
-  const valueRows = [];
+  const valueRows: string[] = [];
   let currentRow = '';
   let parenCount = 0;
   let inString = false;
@@ -109,7 +121,7 @@ function breakDownInsertStatement(statement, tableName, maxRowsPerInsert) {
 
   if (valueRows.length <= maxRowsPerInsert) return [statement];
 
-  const chunks = [];
+  const chunks: string[] = [];
   for (let i = 0; i < valueRows.length; i += maxRowsPerInsert) {
     const chunk = valueRows.slice(i, i + maxRowsPerInsert);
     chunks.push(`${header}\n\t${chunk.join(',\n\t')};`);
@@ -119,11 +131,11 @@ function breakDownInsertStatement(statement, tableName, maxRowsPerInsert) {
   return chunks;
 }
 
-function parseSeedContent(content) {
+function parseSeedContent(content: string): ParsedSeedContent {
   const lines = content.split('\n');
-  const tableContent = {};
-  let currentTable = null;
-  let currentStatement = [];
+  const tableContent: Record<string, string[]> = {};
+  let currentTable: string | null = null;
+  let currentStatement: string[] = [];
   let inInsertStatement = false;
 
   for (const line of lines) {
@@ -145,7 +157,7 @@ function parseSeedContent(content) {
 
     if (inInsertStatement) {
       currentStatement.push(line);
-      if (line.trim().endsWith(';')) {
+      if (line.trim().endsWith(';') && currentTable) {
         if (!tableContent[currentTable]) tableContent[currentTable] = [];
         tableContent[currentTable].push(currentStatement.join('\n'));
         currentStatement = [];
@@ -166,11 +178,11 @@ function parseSeedContent(content) {
   return { tableContent, sequenceLines, lineCount: lines.length };
 }
 
-function asPositiveNumber(value, fallback) {
-  return Number.isFinite(value) && value > 0 ? value : fallback;
+function asPositiveNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-function getEffectiveTableLimits(table, config) {
+function getEffectiveTableLimits(table: string, config: DataConfig): EffectiveTableLimits {
   const tableRule = config.tableRules?.[table];
   if (!tableRule || typeof tableRule !== 'object') return { ...config.limits, skip: false };
 
@@ -182,7 +194,7 @@ function getEffectiveTableLimits(table, config) {
   };
 }
 
-function writeTableChunks(config, table, statements, counter) {
+function writeTableChunks(config: DataConfig, table: string, statements: string[], counter: number): number {
   const tableLimits = getEffectiveTableLimits(table, config);
   if (tableLimits.skip) {
     console.log(info(`Skipping table by rule: ${table}`));
@@ -192,7 +204,7 @@ function writeTableChunks(config, table, statements, counter) {
   const cleanTableName = table.replace(/\./g, '_');
   let fileCounter = 0;
 
-  const processedStatements = [];
+  const processedStatements: string[] = [];
   for (const statement of statements) {
     const rowCount = countRowsInInsertStatement(statement);
     if (rowCount > tableLimits.maxRowsPerInsert) {
@@ -217,7 +229,7 @@ function writeTableChunks(config, table, statements, counter) {
     return counter + 1;
   }
 
-  let currentChunk = [];
+  let currentChunk: string[] = [];
   let currentLines = 0;
   let writtenFiles = 0;
 
@@ -251,7 +263,7 @@ function writeTableChunks(config, table, statements, counter) {
   return counter + 1;
 }
 
-function splitData(config) {
+function splitData(config: DataConfig) {
   console.log(info(`Reading data file: ${config.inputFile}`));
   const dataContent = fs.readFileSync(config.inputFile, 'utf8');
   console.log(ok(`Loaded data file: ${(dataContent.length / 1024 / 1024).toFixed(2)}MB`));
@@ -278,12 +290,12 @@ function splitData(config) {
   console.log(ok(`Data split completed. ${createdFiles} files created in ${config.outputDir}.`));
 }
 
-function toRegexPattern(pattern) {
+function toRegexPattern(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
   return new RegExp(`^${escaped}$`);
 }
 
-function shouldIgnoreFile(fileName, patterns) {
+function shouldIgnoreFile(fileName: string, patterns: string[]): boolean {
   if (!patterns || patterns.length === 0) return false;
   return patterns.some((pattern) => {
     if (pattern.includes('*')) return toRegexPattern(pattern).test(fileName);
@@ -291,7 +303,7 @@ function shouldIgnoreFile(fileName, patterns) {
   });
 }
 
-function reconstructData(config) {
+function reconstructData(config: DataConfig) {
   const files = fs
     .readdirSync(config.outputDir)
     .filter((file) => file.endsWith('.sql'))
@@ -304,15 +316,15 @@ function reconstructData(config) {
   console.log(ok(`Reconstructed data written to: ${config.reconstructedFile}`));
 }
 
-function getRowCountByTable(tableContent) {
-  const counts = {};
+function getRowCountByTable(tableContent: Record<string, string[]>): Record<string, number> {
+  const counts: Record<string, number> = {};
   for (const [table, statements] of Object.entries(tableContent)) {
     counts[table] = statements.reduce((acc, statement) => acc + countRowsInInsertStatement(statement), 0);
   }
   return counts;
 }
 
-function validateData(config) {
+function validateData(config: DataConfig): boolean {
   const originalContent = fs.readFileSync(config.inputFile, 'utf8');
   const reconstructedContent = fs.readFileSync(config.reconstructedFile, 'utf8');
 
@@ -328,7 +340,7 @@ function validateData(config) {
   const missingTables = originalTables.filter((table) => !Object.hasOwn(reconstructedRows, table));
   const extraTables = reconstructedTables.filter((table) => !Object.hasOwn(originalRows, table));
 
-  const mismatchedCounts = [];
+  const mismatchedCounts: Array<{ table: string; original: number; reconstructed: number }> = [];
   for (const table of originalTables) {
     if (!Object.hasOwn(reconstructedRows, table)) continue;
     if (originalRows[table] !== reconstructedRows[table]) {
@@ -367,7 +379,7 @@ function validateData(config) {
   return false;
 }
 
-export async function runDataCommand(args) {
+export async function runDataCommand(args: string[]) {
   await runStepCommand(args, {
     commandName: 'data',
     commandDisplayName: 'Data',

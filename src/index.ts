@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 
 import { Command } from 'commander';
 import { runSchemaCommand } from './commands/schema.js';
@@ -7,8 +6,14 @@ import { runDataCommand } from './commands/data.js';
 import { runInitCommand } from './commands/init.js';
 import { error as errText } from './lib/ui.js';
 
-function buildStepArgs(step, reconstructed, options) {
-  const args = [];
+type StepCliOptions = {
+  input?: string;
+  output?: string;
+  backup?: boolean;
+};
+
+function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOptions = {}): string[] {
+  const args: string[] = [];
   if (step) args.push(step);
   if (options.input) args.push('--input', options.input);
   if (options.output) args.push('--output', options.output);
@@ -19,7 +24,7 @@ function buildStepArgs(step, reconstructed, options) {
 
 const program = new Command();
 program
-  .name('supabase-splitter')
+  .name('supabee')
   .description(
     'Split large Supabase schema/data dumps into organized, version-control-friendly SQL files.',
   )
@@ -28,18 +33,18 @@ program
     'after',
     `
 Getting started:
-  1. npx supabase-splitter init          # generate config, update config.toml
+  1. supabee init                         # generate config, update config.toml
   2. supabase link                        # link to your Supabase project (if not already linked)
   3. supabase db dump > supabase/schemas/prod-schemas.sql
   4. supabase db dump --data-only > supabase/seeds/prod-data.sql
-  5. npx supabase-splitter schema         # split → reconstruct → validate
-  6. npx supabase-splitter data           # split → reconstruct → validate
+  5. supabee schema                       # split → reconstruct → validate
+  6. supabee data                         # split → reconstruct → validate
 
 Examples:
-  supabase-splitter init
-  supabase-splitter schema
-  supabase-splitter data
-  supabase-splitter data split --input supabase/seeds/prod-data.sql --output supabase/seeds/split --backup
+  supabee init
+  supabee schema
+  supabee data
+  supabee data split --input supabase/seeds/prod-data.sql --output supabase/seeds/split --backup
 `,
   );
 
@@ -59,7 +64,7 @@ for (const commandName of ['schema', 'data']) {
     .option('--input <path>', 'Input SQL file or split folder (reconstruct)')
     .option('--output <path>', 'Split output folder (split) or reconstructed file')
     .option('--backup', 'Backup dirty split output folder before split')
-    .action(async (step, reconstructed, options) => {
+    .action(async (step?: string, reconstructed?: string, options: StepCliOptions = {}) => {
       const forwarded = buildStepArgs(step, reconstructed, options);
       if (commandName === 'schema') {
         await runSchemaCommand(forwarded);
@@ -69,7 +74,8 @@ for (const commandName of ['schema', 'data']) {
     });
 }
 
-program.parseAsync(process.argv).catch((error) => {
-  console.error(errText(error?.message || String(error)));
+program.parseAsync(process.argv).catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(errText(message));
   process.exit(1);
 });

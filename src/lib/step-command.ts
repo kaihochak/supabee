@@ -1,9 +1,41 @@
-// @ts-nocheck
 import { runSubcommandMode } from './command-mode.js';
-import { parseStepCommandArgs, printStepCommandHelp, resolveStepPaths } from './command-contract.js';
+import {
+  parseStepCommandArgs,
+  printStepCommandHelp,
+  resolveStepPaths,
+  type ResolvedStepPaths,
+  type StepCommandOptions,
+  type StepName,
+} from './command-contract.js';
 import { sectionWithNote, title } from './ui.js';
 
-function printStepDetails(commandDisplayName, step, note, detailLines) {
+type ActionContext<TConfig> = {
+  config: TConfig;
+  options: StepCommandOptions;
+  defaults: TConfig;
+  subcommand: string | null;
+};
+
+type StepCommandDefinition<TConfig extends ResolvedStepPaths> = {
+  commandName: string;
+  commandDisplayName: string;
+  detailNote: ((step: StepName) => string) | string;
+  buildDefaults: (options?: StepCommandOptions) => TConfig;
+  buildStepConfig?: (params: {
+    step: StepName;
+    defaults: TConfig;
+    options: StepCommandOptions;
+    subcommand: string | null;
+  }) => TConfig;
+  getDetailLines: ((step: StepName, config: TConfig) => string[]) | string[];
+  actions: {
+    split: (context: ActionContext<TConfig>) => Promise<unknown>;
+    reconstruct: (context: ActionContext<TConfig>) => Promise<unknown>;
+    validate: (context: ActionContext<TConfig>) => Promise<boolean>;
+  };
+};
+
+function printStepDetails(commandDisplayName: string, step: StepName, note: string, detailLines: string[]) {
   console.log(sectionWithNote(title(`${commandDisplayName} ${step}`), note));
   for (const line of detailLines) {
     console.log(line);
@@ -11,7 +43,10 @@ function printStepDetails(commandDisplayName, step, note, detailLines) {
   console.log('');
 }
 
-export async function runStepCommand(args, definition) {
+export async function runStepCommand<TConfig extends ResolvedStepPaths>(
+  args: string[],
+  definition: StepCommandDefinition<TConfig>,
+) {
   const { commandName, commandDisplayName, detailNote, buildDefaults, buildStepConfig, getDetailLines, actions } = definition;
   const { subcommand, options, isUnknownSubcommand } = parseStepCommandArgs(args);
 
@@ -26,11 +61,11 @@ export async function runStepCommand(args, definition) {
   }
 
   const defaults = buildDefaults(options);
-  const resolveDetailNote = (step) => (typeof detailNote === 'function' ? detailNote(step) : detailNote);
-  const resolveDetailLines = (step, config) =>
+  const resolveDetailNote = (step: StepName) => (typeof detailNote === 'function' ? detailNote(step) : detailNote);
+  const resolveDetailLines = (step: StepName, config: TConfig) =>
     (typeof getDetailLines === 'function' ? getDetailLines(step, config) : getDetailLines) ?? [];
 
-  const resolveStepConfig = (step) => {
+  const resolveStepConfig = (step: StepName): TConfig => {
     if (buildStepConfig) return buildStepConfig({ step, defaults, options, subcommand });
     const stepPaths = resolveStepPaths({ defaults, options, subcommand, step });
     return {

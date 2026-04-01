@@ -1,6 +1,6 @@
 {
   "name": "supabee",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "CLI tools for local Supabase schema/data workflows",
   "license": "MIT",
   "author": "Kai Ho Chak",

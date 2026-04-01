@@ -226,6 +226,8 @@ supabee schema --help
 supabee data --help
 ```
 
+Legacy CLI alias is still available: `supabase-splitter --help`.
+
 ## Development
 
 ```bash

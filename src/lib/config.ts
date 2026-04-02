@@ -15,6 +15,7 @@ export type SchemaConfig = {
   inputFile: string;
   outputDir: string;
   reconstructedFile: string;
+  backupByDefault: boolean;
   keepFiles: string[];
 };
 
@@ -28,6 +29,7 @@ export type DataConfig = {
   inputFile: string;
   outputDir: string;
   reconstructedFile: string;
+  backupByDefault: boolean;
   limits: DataLimits;
   tableRules: Record<string, DataTableRule>;
   keepFiles: string[];
@@ -40,6 +42,10 @@ function asObject(value: unknown): UnknownRecord {
 
 function asNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 function asStringArray(value: unknown, fallback: string[] = []): string[] {
@@ -92,6 +98,7 @@ function resolveSchemaConfig(toolConfig: ToolConfig, cliOptions: Partial<{ input
     inputFile: path.resolve(process.cwd(), inputValue),
     outputDir: path.resolve(process.cwd(), outputValue),
     reconstructedFile: path.resolve(process.cwd(), reconstructedValue),
+    backupByDefault: asBoolean(merged.backup, DEFAULTS.schema.backup),
     keepFiles: asStringArray(merged.keepFiles),
   };
 }
@@ -108,6 +115,7 @@ function resolveDataConfig(toolConfig: ToolConfig, cliOptions: Partial<{ input: 
     inputFile: path.resolve(process.cwd(), inputValue),
     outputDir: path.resolve(process.cwd(), outputValue),
     reconstructedFile: path.resolve(process.cwd(), reconstructedValue),
+    backupByDefault: asBoolean(merged.backup, DEFAULTS.data.backup),
     limits: {
       maxLinesPerFile: asNumber(merged.maxLinesPerFile, DEFAULTS.data.maxLinesPerFile),
       maxStatementsPerFile: asNumber(merged.maxStatementsPerFile, DEFAULTS.data.maxStatementsPerFile),

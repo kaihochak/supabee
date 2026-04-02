@@ -223,7 +223,7 @@ async function writeStatements(config: RuntimeSchemaConfig, statements: Categori
   });
 
   await fs.promises.writeFile(config.indexPath, JSON.stringify(indexData, null, 2), 'utf8');
-  console.log(ok(`Wrote ${indexData.length} index entries: ${config.indexPath}`));
+  console.log(info(`Index entries: ${indexData.length} (${config.indexPath})`));
 }
 
 async function reconstructSql(config: RuntimeSchemaConfig) {
@@ -267,17 +267,38 @@ async function validateReconstruction(config: RuntimeSchemaConfig): Promise<bool
   const originalContent = await fs.promises.readFile(config.inputFile, 'utf8');
   const reconstructedContent = await fs.promises.readFile(config.reconstructedFile, 'utf8');
 
-  const originalMd5 = crypto.createHash('md5').update(originalContent).digest('hex');
-  const reconstructedMd5 = crypto.createHash('md5').update(reconstructedContent).digest('hex');
+  const normalizeSql = (content: string) => `${content.replace(/\r\n/g, '\n').trimEnd()}\n`;
+  const originalNormalized = normalizeSql(originalContent);
+  const reconstructedNormalized = normalizeSql(reconstructedContent);
+
+  const originalMd5 = crypto.createHash('md5').update(originalNormalized).digest('hex');
+  const reconstructedMd5 = crypto.createHash('md5').update(reconstructedNormalized).digest('hex');
 
   if (originalMd5 === reconstructedMd5) {
-    console.log(ok('Validation successful: files match exactly.'));
+    console.log(ok('Validation successful: schema matches after normalizing EOF whitespace.'));
     return true;
   }
 
+  const originalLines = originalNormalized.split('\n');
+  const reconstructedLines = reconstructedNormalized.split('\n');
+  const maxLineCount = Math.max(originalLines.length, reconstructedLines.length);
+  let firstDiffLine = -1;
+
+  for (let i = 0; i < maxLineCount; i += 1) {
+    if ((originalLines[i] ?? '') !== (reconstructedLines[i] ?? '')) {
+      firstDiffLine = i + 1;
+      break;
+    }
+  }
+
   console.log(errText('Validation failed: files do not match.'));
-  console.log(info(`Original MD5: ${originalMd5}`));
-  console.log(info(`Reconstructed MD5: ${reconstructedMd5}`));
+  if (firstDiffLine !== -1) {
+    console.log(info(`First difference at line ${firstDiffLine}.`));
+    console.log(info(`Original:      ${originalLines[firstDiffLine - 1] ?? '(EOF)'}`));
+    console.log(info(`Reconstructed: ${reconstructedLines[firstDiffLine - 1] ?? '(EOF)'}`));
+  }
+  console.log(info(`Original lines: ${originalLines.length}`));
+  console.log(info(`Reconstructed lines: ${reconstructedLines.length}`));
   return false;
 }
 
@@ -287,7 +308,7 @@ export async function runSchemaCommand(args: string[]) {
     commandDisplayName: 'Schema',
     detailNote: (step) =>
       ({
-        split: ' Splitting schemas into files...',
+        split: ' Splitting schema into files...',
         reconstruct: ' Reconstructing schema SQL from split files...',
         validate: ' Validating reconstructed schema against original...',
       })[step],
@@ -321,9 +342,14 @@ export async function runSchemaCommand(args: string[]) {
     },
     actions: {
       split: async ({ config, options }) => {
-        await prepareSplitOutputDir(config.outputDir, options.backup, 'Schema', { keepFiles: config.keepFiles });
+        const shouldBackup = options.backup ?? config.backupByDefault;
+        await prepareSplitOutputDir(config.outputDir, shouldBackup, 'Schema', { keepFiles: config.keepFiles });
+        console.log(info(`Reading schema file: ${config.inputFile}`));
         const sqlContent = await fs.promises.readFile(config.inputFile, 'utf8');
+        console.log(ok(`Loaded schema file: ${(sqlContent.length / 1024 / 1024).toFixed(2)}MB`));
         const statements = extractStatements(sqlContent);
+        const statementCount = Object.values(statements).reduce((count, items) => count + items.length, 0);
+        console.log(info(`Processing ${statementCount} statements...`));
         await writeStatements(config, statements);
         console.log(ok(`Schema split completed. Output: ${config.outputDir}`));
       },

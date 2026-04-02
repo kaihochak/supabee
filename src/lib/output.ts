@@ -50,32 +50,73 @@ async function collectFiles(rootDir: string, currentDir = rootDir): Promise<stri
 
 async function restoreKeepFiles({
   outputDir,
-  backupPath,
+  sourceDir,
   keepFiles,
   label,
+  silent = false,
 }: {
   outputDir: string;
-  backupPath: string | null;
+  sourceDir: string | null;
   keepFiles: string[];
   label: string;
+  silent?: boolean;
 }) {
-  if (!backupPath || !Array.isArray(keepFiles) || keepFiles.length === 0) return 0;
-  const existingFiles = await collectFiles(backupPath);
+  if (!sourceDir || !Array.isArray(keepFiles) || keepFiles.length === 0) return 0;
+  const existingFiles = await collectFiles(sourceDir);
   const restoreTargets = existingFiles.filter((relativePath) =>
     keepFiles.some((pattern) => matchesKeepPattern(relativePath, pattern)),
   );
 
   for (const relativePath of restoreTargets) {
-    const from = path.join(backupPath, relativePath);
+    const from = path.join(sourceDir, relativePath);
     const to = path.join(outputDir, relativePath);
     await fs.promises.mkdir(path.dirname(to), { recursive: true });
     await fs.promises.copyFile(from, to);
   }
 
-  if (restoreTargets.length > 0) {
+  if (!silent && restoreTargets.length > 0) {
     console.log(info(`Restored ${restoreTargets.length} kept file(s) for ${label.toLowerCase()} output.`));
   }
   return restoreTargets.length;
+}
+
+async function clearOutputDirWithoutBackup({
+  outputDir,
+  keepFiles,
+  label,
+}: {
+  outputDir: string;
+  keepFiles: string[];
+  label: string;
+}) {
+  if (!Array.isArray(keepFiles) || keepFiles.length === 0) {
+    await fs.promises.rm(outputDir, { recursive: true, force: true });
+    await fs.promises.mkdir(outputDir, { recursive: true });
+    console.log(info(`Cleared existing ${label.toLowerCase()} output without backup.`));
+    return { restoredCount: 0 };
+  }
+
+  const preserveDir = path.join(path.dirname(outputDir), `.preserve_${path.basename(outputDir)}_${timestampForPath()}`);
+  await fs.promises.mkdir(preserveDir, { recursive: true });
+  await restoreKeepFiles({
+    outputDir: preserveDir,
+    sourceDir: outputDir,
+    keepFiles,
+    label,
+    silent: true,
+  });
+
+  await fs.promises.rm(outputDir, { recursive: true, force: true });
+  await fs.promises.mkdir(outputDir, { recursive: true });
+  const restoredCount = await restoreKeepFiles({
+    outputDir,
+    sourceDir: preserveDir,
+    keepFiles,
+    label,
+  });
+  await fs.promises.rm(preserveDir, { recursive: true, force: true });
+  console.log(info(`Cleared existing ${label.toLowerCase()} output without backup.`));
+  return { restoredCount };
 }
 
 export async function prepareSplitOutputDir(
@@ -92,9 +133,8 @@ export async function prepareSplitOutputDir(
   }
 
   if (!backup) {
-    throw new Error(
-      `${label} output directory is not empty: ${outputDir}.\nRe-run with --backup to preserve existing files.`,
-    );
+    const { restoredCount } = await clearOutputDirWithoutBackup({ outputDir, keepFiles, label });
+    return { backupPath: null, restoredCount };
   }
 
   const backupRoot = path.join(path.dirname(outputDir), 'backup');
@@ -103,6 +143,6 @@ export async function prepareSplitOutputDir(
   await fs.promises.rename(outputDir, backupPath);
   await fs.promises.mkdir(outputDir, { recursive: true });
   console.log(info(`Backed up existing ${label.toLowerCase()} output to: ${backupPath}`));
-  const restoredCount = await restoreKeepFiles({ outputDir, backupPath, keepFiles, label });
+  const restoredCount = await restoreKeepFiles({ outputDir, sourceDir: backupPath, keepFiles, label });
   return { backupPath, restoredCount };
 }

@@ -4,18 +4,20 @@
 [![npm version](https://img.shields.io/npm/v/supabee)](https://www.npmjs.com/package/supabee)
 [![license](https://img.shields.io/npm/l/supabee)](./LICENSE)
 
-Split large Supabase schema and data dump files into smaller, organized, version-control-friendly SQL files.
+Orchestrate post-seed migrations safely and split schema/data SQL into organized files.
 
 ## Why?
 
-When you run `supabase db dump`, you get a single monolithic SQL file that can be thousands of lines long. This makes it hard to:
+When your local reset/start flow has both pre-seed and post-seed migrations, migration ordering can diverge from production behavior. `supabee` helps you defer and re-apply post-seed migrations safely, and it also makes large SQL dumps manageable by splitting them into focused files.
+
+Splitting helps with:
 
 - **Review changes** in pull requests (one giant diff vs. focused per-table diffs)
 - **Navigate** your database structure (finding a specific table in 5000 lines vs. opening a file)
 - **Seed selectively** (load only what you need instead of everything)
 - **Resolve merge conflicts** (conflicts in small files vs. one massive file)
 
-`supabee` takes those dump files and splits them into categorized, ordered files that reconstruct back to the original — verified by built-in validation.
+`supabee` focuses on post-seed-safe orchestration (`db reset` / `start`) plus schema/data splitting workflows.
 
 ## Prerequisites
 
@@ -50,21 +52,19 @@ supabase link
 
 You'll be prompted for your project ref and database password. See the [Supabase CLI docs](https://supabase.com/docs/reference/cli/supabase-link) for details.
 
-### 3. Dump schema and data
+### 3. Run the primary workflows
 
 ```bash
-supabase db dump > supabase/schemas/prod-schemas.sql
-supabase db dump --data-only > supabase/seeds/prod-data.sql
+supabee sync schema
+supabee sync data
+supabee db reset [cutoff_timestamp]
+supabee start [cutoff_timestamp]
 ```
 
-### 4. Split, reconstruct, and validate
+`sync` commands run end-to-end:
 
-```bash
-supabee schema
-supabee data
-```
-
-Each command runs the full chain: **split** → **reconstruct** → **validate**.
+- schema: `supabase db dump` -> split -> reconstruct -> validate
+- data: `supabase db dump --data-only` -> split -> reconstruct -> validate
 
 ## Commands
 
@@ -78,7 +78,7 @@ supabee init
 
 ### `schema`
 
-Splits a schema dump into categorized folders:
+Processes an existing schema dump into categorized folders:
 
 ```
 supabase/schemas/split/
@@ -109,7 +109,7 @@ supabee schema validate
 
 ### `data`
 
-Splits a data dump into per-table files with configurable row/statement limits:
+Processes an existing data dump into per-table files with configurable row/statement limits:
 
 ```bash
 # Full chain (split → reconstruct → validate)
@@ -121,16 +121,73 @@ supabee data reconstruct
 supabee data validate
 ```
 
+### `sync schema`
+
+Dumps schema from the linked Supabase project, then runs full schema processing:
+
+```bash
+supabee sync schema
+supabee sync schema --input supabase/schemas/prod-schemas.sql --output supabase/schemas/split
+supabee sync schema --backup
+```
+
+### `sync data`
+
+Dumps data (`--data-only`) from the linked Supabase project, then runs full data processing:
+
+```bash
+supabee sync data
+supabee sync data --input supabase/seeds/prod-data.sql --output supabase/seeds/split
+supabee sync data --backup
+supabee sync data --no-backup
+```
+
+### `db reset`
+
+Defers post-seed migrations newer than the cutoff timestamp, runs `supabase db reset`, restores deferred migrations, then reapplies them.
+
+If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest aligned local/remote migration version.
+This requires `supabase link` to be configured.
+
+```bash
+# default re-apply mode: supabase migration up
+supabee db reset 20260309180959
+supabee db reset
+
+# optional re-apply mode: psql
+supabee db reset 20260309180959 --psql
+```
+
+### `start`
+
+Defers post-seed migrations newer than the cutoff timestamp, runs `supabase start`, restores deferred migrations, then reapplies them.
+
+If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` the same way as `db reset`.
+
+```bash
+# explicit cutoff
+supabee start 20260309180959
+
+# auto cutoff from linked migration alignment
+supabee start
+
+# optional re-apply mode: psql
+supabee start --psql
+```
+
 ### Overriding paths
 
-All commands accept `--input` and `--output` flags:
+`schema`, `data`, and `sync` commands accept `--input` and `--output` flags:
 
 ```bash
 supabee schema split --input path/to/schema.sql --output path/to/split
-supabee data split --input path/to/data.sql --output path/to/split --backup
+supabee schema split --input path/to/schema.sql --output path/to/split --backup
+supabee data split --input path/to/data.sql --output path/to/split
+supabee data split --input path/to/data.sql --output path/to/split --no-backup
 ```
 
-Use `--backup` to save the existing split directory before overwriting.
+By default, split operations replace existing output in-place (while preserving configured `keepFiles`) without creating a backup folder.
+Use `--backup` to keep a timestamped backup before replacement.
 
 ## Configuration
 
@@ -150,12 +207,14 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
     "input": "supabase/schemas/prod-schemas.sql",
     "output": "supabase/schemas/split",
     "reconstructed": "supabase/schemas/reconstructed-schemas.sql",
+    "backup": false,
     "keepFiles": []
   },
   "data": {
     "input": "supabase/seeds/prod-data.sql",
     "output": "supabase/seeds/split",
     "reconstructed": "supabase/seeds/reconstructed-data.sql",
+    "backup": false,
     "maxLinesPerFile": 2000,
     "maxStatementsPerFile": 20,
     "maxRowsPerInsert": 200,
@@ -174,10 +233,12 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
 | `schema.input` | Path to your schema dump file |
 | `schema.output` | Directory for split schema files |
 | `schema.reconstructed` | Path for the reconstructed schema (used in validation) |
-| `schema.keepFiles` | Files in the split dir to preserve across re-splits (restored from backup) |
+| `schema.backup` | Whether split should create backup folder before replacing output (default: `false`) |
+| `schema.keepFiles` | Files in the split dir to preserve across re-splits |
 | `data.input` | Path to your data dump file |
 | `data.output` | Directory for split data files |
 | `data.reconstructed` | Path for the reconstructed data (used in validation) |
+| `data.backup` | Whether split should create backup folder before replacing output (default: `false`) |
 | `data.maxLinesPerFile` | Max lines per split file (default: 2000) |
 | `data.maxStatementsPerFile` | Max INSERT statements per file (default: 20) |
 | `data.maxRowsPerInsert` | Max rows per INSERT statement (default: 200) |
@@ -209,21 +270,66 @@ Override limits or skip specific tables:
 
 ## Flags
 
-Both `schema` and `data` support:
+`schema`, `data`, `sync schema`, and `sync data` support:
 
 - `--input`: source SQL file
 - `--output`: output path (split dir for `split`, reconstructed file for `reconstruct`/`validate`)
-- `--backup`: backup dirty split directory before running split
+- `--backup`: create backup of dirty split directory before running split
+- `--no-backup`: disable backup of dirty split directory before running split
 
 For `validate`, you can pass reconstructed path either as `--output <path>` or as the second positional argument.
+
+`db reset` supports:
+
+- `--psql`: apply deferred migrations via `psql` instead of `supabase migration up`
+- `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
+- `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
+
+`start` supports:
+
+- `--psql`: apply deferred migrations via `psql` instead of `supabase migration up`
+- `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
+- `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
+
+## Why `supabee db reset` and `supabee start`
+
+These commands matter most when local replay order diverges from how production data actually evolved:
+
+1. Seed files may be shaped for pre-migration schema.
+2. Some migrations intentionally mutate/seed production data for traceability (for example RBAC rows).
+3. Local `migrations -> seed` replay can fail even when production worked on already-populated data.
+
+By deferring post-seed migrations and applying them after seed load, `supabee` better matches this production-style path.
+
+## Migration + Seed Duplication Caveat
+
+If the same logical data mutation exists in both migration SQL and seed files, local replay can become order-dependent and brittle.
+
+Typical symptoms:
+- enum/value already exists errors,
+- duplicate key or constraint violations,
+- reset/start-only failures that don’t appear on incremental production deploys.
+
+Recommended approach:
+
+1. Keep schema structure changes in migrations.
+2. Keep baseline/reference seed rows in seed files.
+3. Make migration-time data mutations idempotent (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, guarded updates).
+4. Avoid duplicating the exact same inserts/enum mutations in both seeds and migrations unless both paths are explicitly idempotent.
 
 ## Help
 
 ```bash
 supabee --help
 supabee init --help
+supabee sync --help
+supabee sync schema --help
+supabee sync data --help
 supabee schema --help
 supabee data --help
+supabee start --help
+supabee db --help
+supabee db reset --help
 ```
 
 Legacy CLI alias is still available: `supabase-splitter --help`.

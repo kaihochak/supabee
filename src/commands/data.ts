@@ -287,7 +287,8 @@ function splitData(config: DataConfig) {
   }
 
   const createdFiles = fs.readdirSync(config.outputDir).filter((file) => file.endsWith('.sql')).length;
-  console.log(ok(`Data split completed. ${createdFiles} files created in ${config.outputDir}.`));
+  console.log(info(`Created files: ${createdFiles}`));
+  console.log(ok(`Data split completed. Output: ${config.outputDir}`));
 }
 
 function toRegexPattern(pattern: string): RegExp {
@@ -416,7 +417,8 @@ export async function runDataCommand(args: string[]) {
     },
     actions: {
       split: async ({ config, options }) => {
-        await prepareSplitOutputDir(config.outputDir, options.backup, 'Data', { keepFiles: config.keepFiles });
+        const shouldBackup = options.backup ?? config.backupByDefault;
+        await prepareSplitOutputDir(config.outputDir, shouldBackup, 'Data', { keepFiles: config.keepFiles });
         splitData(config);
       },
       reconstruct: async ({ config }) => {

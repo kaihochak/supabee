@@ -4,20 +4,40 @@
 [![npm version](https://img.shields.io/npm/v/supabee)](https://www.npmjs.com/package/supabee)
 [![license](https://img.shields.io/npm/l/supabee)](./LICENSE)
 
-Orchestrate post-seed migrations safely and split schema/data SQL into organized files.
+Orchestrate local Supabase schema/data workflows: split giant SQL dumps into organized files, and apply post-seed migrations in a production-like order.
 
 ## Why?
 
-When your local reset/start flow has both pre-seed and post-seed migrations, migration ordering can diverge from production behavior. `supabee` helps you defer and re-apply post-seed migrations safely, and it also makes large SQL dumps manageable by splitting them into focused files.
+Supabase workflows often end up with two pain points:
 
-Splitting helps with:
+1. **One huge dump file** (`supabase db dump` / `--data-only`) that's painful to review, edit, or selectively seed from.
+2. **Local reset/start ordering** (migrations → seeds) that can diverge from production deploys (new migrations applied onto an already-populated database).
 
-- **Review changes** in pull requests (one giant diff vs. focused per-table diffs)
-- **Navigate** your database structure (finding a specific table in 5000 lines vs. opening a file)
-- **Seed selectively** (load only what you need instead of everything)
-- **Resolve merge conflicts** (conflicts in small files vs. one massive file)
+`supabee` addresses both:
 
-`supabee` focuses on post-seed-safe orchestration (`db reset` / `start`) plus schema/data splitting workflows.
+- **Split + validate dumps:** split schema and data dumps into focused files (by category / by table), then reconstruct and validate round-trip (PR-friendly diffs, easier navigation, and smaller merge conflicts).
+- **Defer post-seed migrations:** temporarily move newer migrations out of the way for `supabase db reset` / `supabase start`, then restore + reapply them after seeds load.
+
+### Use cases
+
+- **Seed data you can control:** keep per-table seed files and point `[db.seed].sql_paths` at only the ones you want.
+- **Schema as docs / source of truth:** keep schema readable in-repo (tables, functions, RLS, permissions, etc.).
+- **Mimic production locally:** catch “works on reset” vs “works on deploy” issues by applying post-seed migrations after data exists.
+- **One-liners with validation:** `sync schema` / `sync data` run dump → split → reconstruct → validate.
+
+### Repo hygiene (recommended)
+
+Commit split outputs (for example `supabase/schemas/split/**` and `supabase/seeds/split/**`), and ignore large generated artifacts in your repo:
+
+```gitignore
+# raw dumps (generated from prod; optional to keep locally)
+supabase/schemas/prod-schemas.sql
+supabase/seeds/prod-data.sql
+
+# reconstructed outputs (validation artifacts)
+supabase/schemas/reconstructed-schemas.sql
+supabase/seeds/reconstructed-data.sql
+```
 
 ## Prerequisites
 
@@ -65,6 +85,21 @@ supabee start [cutoff_timestamp]
 
 - schema: `supabase db dump` -> split -> reconstruct -> validate
 - data: `supabase db dump --data-only` -> split -> reconstruct -> validate
+
+### Selective seeding example (optional)
+
+By default, `supabee init` configures `supabase/config.toml` to load all split seed files (for example `./seeds/split/*.sql`).
+To seed only a subset, replace `[db.seed].sql_paths` with an explicit ordered list (keep `001_setup.sql` and `999_cleanup.sql`; add the generated `*_sequences.sql` file if you need sequence values):
+
+```toml
+[db.seed]
+sql_paths = [
+  "./seeds/split/001_setup.sql",
+  "./seeds/split/002_public_users.sql",
+  "./seeds/split/003_public_projects.sql",
+  "./seeds/split/999_cleanup.sql",
+]
+```
 
 ## Commands
 
@@ -291,9 +326,9 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
 - `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
 - `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
 
-## Why `supabee db reset` and `supabee start`
+## Deep dive: why `supabee db reset` and `supabee start`
 
-These commands matter most when local replay order diverges from how production data actually evolved:
+The short version is in the **Why?** section above. These commands matter most when local replay order diverges from how production data actually evolved:
 
 1. Seed files may be shaped for pre-migration schema.
 2. Some migrations intentionally mutate/seed production data for traceability (for example RBAC rows).

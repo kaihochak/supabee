@@ -57,24 +57,22 @@ function asTableRules(value: unknown): Record<string, DataTableRule> {
   return asObject(value) as Record<string, DataTableRule>;
 }
 
-export function readToolConfig(): ToolConfig {
+function resolveExistingToolConfigPath(): string | null {
   const primaryConfigPath = path.resolve(process.cwd(), DEFAULT_TOOL_CONFIG_PATH);
   const legacyConfigPath = path.resolve(process.cwd(), LEGACY_TOOL_CONFIG_PATH);
 
-  let configPath: string | null = null;
   if (fs.existsSync(primaryConfigPath)) {
-    configPath = primaryConfigPath;
-  } else if (fs.existsSync(legacyConfigPath)) {
-    configPath = legacyConfigPath;
-    console.log(
-      warnText(
-        `Using legacy config file ${LEGACY_TOOL_CONFIG_PATH}. Consider renaming it to ${DEFAULT_TOOL_CONFIG_PATH}.`,
-      ),
-    );
+    return primaryConfigPath;
   }
 
-  if (!configPath) return {};
+  if (fs.existsSync(legacyConfigPath)) {
+    return legacyConfigPath;
+  }
 
+  return null;
+}
+
+function parseToolConfig(configPath: string): ToolConfig {
   try {
     const raw = fs.readFileSync(configPath, 'utf8');
     const parsed = JSON.parse(raw);
@@ -84,6 +82,42 @@ export function readToolConfig(): ToolConfig {
     console.error(errText(`Invalid tool config JSON at ${configPath}: ${message}`));
     process.exit(1);
   }
+}
+
+export function readToolConfig(): ToolConfig {
+  const configPath = resolveExistingToolConfigPath();
+
+  if (!configPath) return {};
+
+  if (path.basename(configPath) === LEGACY_TOOL_CONFIG_PATH) {
+    console.log(
+      warnText(
+        `Using legacy config file ${LEGACY_TOOL_CONFIG_PATH}. Consider renaming it to ${DEFAULT_TOOL_CONFIG_PATH}.`,
+      ),
+    );
+  }
+
+  return parseToolConfig(configPath);
+}
+
+export function resolveWritableToolConfigPath(): string {
+  const configPath = resolveExistingToolConfigPath();
+  if (configPath) return configPath;
+  return path.resolve(process.cwd(), DEFAULT_TOOL_CONFIG_PATH);
+}
+
+export function writeToolConfig(config: ToolConfig): string {
+  const configPath = resolveWritableToolConfigPath();
+  const serialized = JSON.stringify(config, null, 2) + '\n';
+  fs.writeFileSync(configPath, serialized, 'utf8');
+  return configPath;
+}
+
+export function updateToolConfig(updater: (current: ToolConfig) => ToolConfig): string {
+  const configPath = resolveWritableToolConfigPath();
+  const current = fs.existsSync(configPath) ? parseToolConfig(configPath) : {};
+  const next = updater(current);
+  return writeToolConfig(next);
 }
 
 function resolveSchemaConfig(toolConfig: ToolConfig, cliOptions: Partial<{ input: string; output: string; reconstructed: string }>): SchemaConfig {

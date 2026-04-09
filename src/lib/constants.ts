@@ -9,6 +9,7 @@ export type DataTableRule = {
 };
 
 export type ToolConfig = {
+  postSeedCutoff?: string;
   schema?: {
     input?: string;
     output?: string;

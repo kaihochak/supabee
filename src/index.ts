@@ -6,7 +6,8 @@ import { runDataCommand } from './commands/data.js';
 import { runInitCommand } from './commands/init.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runDbResetCommand, runStartCommand } from './commands/db-reset.js';
-import { error as errText } from './lib/ui.js';
+import { runCommand } from './lib/subprocess.js';
+import { error as errText, info, warn } from './lib/ui.js';
 
 type StepCliOptions = {
   input?: string;
@@ -26,6 +27,67 @@ function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOp
   }
   if (reconstructed) args.push(reconstructed);
   return args;
+}
+
+const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'help']);
+const KNOWN_DB_SUBCOMMANDS = new Set(['reset', 'help']);
+
+function firstNonOptionToken(args: string[]): { token: string; index: number } | null {
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index];
+    if (token === '--') break;
+    if (token.startsWith('-')) continue;
+    return { token, index };
+  }
+  return null;
+}
+
+function detectWrapperInvocation(): 'pnpm' | 'npx' | 'bunx' | null {
+  const userAgent = (process.env.npm_config_user_agent ?? '').toLowerCase();
+  const execPath = (process.env.npm_execpath ?? '').toLowerCase();
+  const npmCommand = (process.env.npm_command ?? '').toLowerCase();
+
+  if (userAgent.includes('pnpm') || execPath.includes('pnpm')) return 'pnpm';
+  if (userAgent.includes('bun') || execPath.includes('bun')) return 'bunx';
+  if (npmCommand === 'exec' || userAgent.includes('npm') || execPath.includes('npm-cli')) return 'npx';
+
+  return null;
+}
+
+function maybePrintGlobalInstallHint(args: string[]) {
+  if (process.env.SUPABEE_NO_GLOBAL_HINT === '1') return;
+  if (args.length === 0) return;
+  if (args.includes('--help') || args.includes('-h')) return;
+
+  const wrapper = detectWrapperInvocation();
+  if (!wrapper) return;
+
+  console.log(info(`Detected ${wrapper} invocation. Install globally for direct usage:`));
+  console.log(warn('  npm i -g supabee  |  pnpm add -g supabee  |  bun add -g supabee'));
+  console.log(info('One-off runners: npx supabee ... | pnpm dlx supabee ... | bunx supabee ...'));
+  console.log('');
+}
+
+async function maybePassthroughToSupabase(args: string[]): Promise<boolean> {
+  const topLevel = firstNonOptionToken(args);
+  if (!topLevel) return false;
+
+  if (KNOWN_TOP_LEVEL_COMMANDS.has(topLevel.token)) {
+    if (topLevel.token !== 'db') return false;
+
+    const dbSubcommand = firstNonOptionToken(args.slice(topLevel.index + 1));
+    if (!dbSubcommand || KNOWN_DB_SUBCOMMANDS.has(dbSubcommand.token)) {
+      return false;
+    }
+
+    console.log(info(`Forwarding to Supabase CLI: supabase ${args.join(' ')}`));
+    await runCommand('supabase', args);
+    return true;
+  }
+
+  console.log(info(`Forwarding to Supabase CLI: supabase ${args.join(' ')}`));
+  await runCommand('supabase', args);
+  return true;
 }
 
 const program = new Command();
@@ -187,7 +249,15 @@ Examples
     },
   );
 
-program.parseAsync(process.argv).catch((error: unknown) => {
+async function main() {
+  const args = process.argv.slice(2);
+  maybePrintGlobalInstallHint(args);
+  const isForwarded = await maybePassthroughToSupabase(args);
+  if (isForwarded) return;
+  await program.parseAsync(process.argv);
+}
+
+main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(errText(message));
   process.exit(1);

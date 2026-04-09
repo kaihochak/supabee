@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { runCommand, runCommandCapture } from '../lib/subprocess.js';
-import { sectionWithNote, title, info, ok } from '../lib/ui.js';
+import { readToolConfig, updateToolConfig } from '../lib/config.js';
+import { sectionWithNote, title, info, ok, warn } from '../lib/ui.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
@@ -21,15 +22,17 @@ type MigrationListRow = {
 };
 
 type PostSeedMode = 'reset' | 'start';
+type CutoffSource = 'argument' | 'linked' | 'config';
 
 const DEFAULT_MIGRATIONS_DIR = 'supabase/migrations';
 const DEFAULT_TEMP_DIR = 'supabase/.tmp-migrations';
 
 function parseCutoffTimestamp(raw: string): number {
-  if (!/^\d+$/.test(raw)) {
+  const value = raw.trim();
+  if (!/^\d+$/.test(value)) {
     throw new Error(`Invalid cutoff timestamp "${raw}". Expected numeric format like 20260309180959.`);
   }
-  const parsed = Number(raw);
+  const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
     throw new Error(`Invalid cutoff timestamp "${raw}".`);
   }
@@ -40,12 +43,21 @@ function isValidMigrationVersion(raw: string): boolean {
   return /^\d+$/.test(raw.trim());
 }
 
+function compareMigrationVersions(a: string, b: string): number {
+  const trimmedA = a.trim();
+  const trimmedB = b.trim();
+  if (trimmedA.length !== trimmedB.length) {
+    return trimmedA.length - trimmedB.length;
+  }
+  return trimmedA.localeCompare(trimmedB);
+}
+
 function parseMigrationListOutput(output: string): MigrationListRow[] {
   const rows: MigrationListRow[] = [];
   const lines = output.split('\n');
 
   for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
+    const line = rawLine.replaceAll('│', '|').trimEnd();
     if (!line.includes('|')) continue;
     if (line.includes('Local') && line.includes('Remote')) continue;
     if (line.match(/^-+\|-+\|-+$/)) continue;
@@ -74,25 +86,102 @@ async function detectCutoffFromLinkedProject(): Promise<string> {
     );
   }
 
-  let latestAligned: string | null = null;
+  const localVersions = new Set<string>();
+  const remoteVersions = new Set<string>();
   for (const row of rows) {
     const local = row.local;
     const remote = row.remote;
-    const isAligned = isValidMigrationVersion(local) && isValidMigrationVersion(remote) && local === remote;
-    if (isAligned) {
-      latestAligned = local;
-      continue;
+    if (isValidMigrationVersion(local)) localVersions.add(local);
+    if (isValidMigrationVersion(remote)) remoteVersions.add(remote);
+  }
+
+  let latestAligned: string | null = null;
+  for (const localVersion of localVersions) {
+    if (!remoteVersions.has(localVersion)) continue;
+    if (!latestAligned || compareMigrationVersions(localVersion, latestAligned) > 0) {
+      latestAligned = localVersion;
     }
-    break;
   }
 
   if (!latestAligned) {
     throw new Error(
-      'No aligned local/remote migration version found. Provide cutoff timestamp explicitly (e.g. `supabee db reset 20260309180959`).',
+      'No common local/remote migration version found. Provide cutoff timestamp explicitly (e.g. `supabee db reset 20260309180959`).',
     );
   }
 
   return latestAligned;
+}
+
+function isLikelyUnlinkedError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return (
+    message.includes('supabase link') ||
+    message.includes('not linked') ||
+    message.includes('project ref') ||
+    message.includes('cannot find project')
+  );
+}
+
+async function detectCutoffWithAutoLinkRetry(): Promise<string> {
+  try {
+    return await detectCutoffFromLinkedProject();
+  } catch (error) {
+    if (!isLikelyUnlinkedError(error)) {
+      throw error;
+    }
+    console.log(info('No linked Supabase project detected. Running `supabase link`...'));
+    await runCommand('supabase', ['link']);
+    return detectCutoffFromLinkedProject();
+  }
+}
+
+function readConfiguredPostSeedCutoff(): string | null {
+  const configured = readToolConfig().postSeedCutoff;
+  if (typeof configured !== 'string') return null;
+
+  const trimmed = configured.trim();
+  if (!trimmed) return null;
+  if (!isValidMigrationVersion(trimmed)) {
+    console.log(warn(`Ignoring invalid postSeedCutoff value in config: ${configured}`));
+    return null;
+  }
+
+  return trimmed;
+}
+
+function persistPostSeedCutoff(cutoffTimestamp: string) {
+  try {
+    const configPath = updateToolConfig((current) => ({ ...current, postSeedCutoff: cutoffTimestamp }));
+    console.log(info(`Saved postSeedCutoff = ${cutoffTimestamp} in ${configPath}`));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(warn(`Unable to persist postSeedCutoff: ${message}`));
+  }
+}
+
+async function resolveCutoffTimestamp(cutoffTimestampRaw: string | undefined): Promise<{ value: string; source: CutoffSource }> {
+  if (cutoffTimestampRaw && cutoffTimestampRaw.trim()) {
+    return { value: cutoffTimestampRaw.trim(), source: 'argument' };
+  }
+
+  try {
+    const detected = await detectCutoffWithAutoLinkRetry();
+    persistPostSeedCutoff(detected);
+    return { value: detected, source: 'linked' };
+  } catch (error) {
+    const fallback = readConfiguredPostSeedCutoff();
+    if (fallback) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(warn(`Could not auto-detect cutoff from linked project. Falling back to postSeedCutoff: ${fallback}`));
+      console.log(info(message));
+      return { value: fallback, source: 'config' };
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Could not auto-detect cutoff from linked project and no postSeedCutoff is configured.\n${message}`,
+    );
+  }
 }
 
 async function listMigrations(migrationsDir: string): Promise<MigrationFile[]> {
@@ -155,17 +244,8 @@ async function runPostSeedCommand(
   cutoffTimestampRaw: string | undefined,
   options: PostSeedCommandOptions = {},
 ) {
-  let resolvedCutoffRaw = cutoffTimestampRaw;
-  if (!resolvedCutoffRaw) {
-    try {
-      resolvedCutoffRaw = await detectCutoffFromLinkedProject();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Could not auto-detect cutoff from linked project. Run \`supabase link\` first or provide cutoff explicitly.\n${message}`,
-      );
-    }
-  }
+  const resolvedCutoff = await resolveCutoffTimestamp(cutoffTimestampRaw);
+  const resolvedCutoffRaw = resolvedCutoff.value;
   const cutoff = parseCutoffTimestamp(resolvedCutoffRaw);
 
   const migrationsDir = path.resolve(process.cwd(), options.migrationsDir ?? DEFAULT_MIGRATIONS_DIR);
@@ -181,7 +261,13 @@ async function runPostSeedCommand(
       `Defers post-seed migrations, runs ${modeCommandLabel(mode)}, restores files, then reapplies deferred migrations.`,
     ),
   );
-  console.log(info(`cutoff = ${resolvedCutoffRaw}${cutoffTimestampRaw ? '' : ' (auto-detected from linked project)'}`));
+  const cutoffSourceSuffix =
+    resolvedCutoff.source === 'linked'
+      ? ' (auto-detected from linked project)'
+      : resolvedCutoff.source === 'config'
+        ? ' (from postSeedCutoff in config)'
+        : '';
+  console.log(info(`cutoff = ${resolvedCutoffRaw}${cutoffSourceSuffix}`));
   console.log(info(`migrationsDir = ${migrationsDir}`));
   console.log(info(`tempDir = ${activeTempDir}`));
   console.log(info(`applyMode = ${usePsql ? 'psql' : 'supabase migration up'}`));

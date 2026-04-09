@@ -296,6 +296,7 @@ function ensureConfigFile() {
 
   // Fallback: write minimal default config
   const minimal = {
+    postSeedCutoff: '',
     schema: {
       input: 'supabase/schemas/prod-schemas.sql',
       output: 'supabase/schemas/split',

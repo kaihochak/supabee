@@ -46,6 +46,24 @@ supabase/seeds/reconstructed-data.sql
 
 ## Install
 
+Global install (recommended):
+
+```bash
+npm i -g supabee
+pnpm add -g supabee
+bun add -g supabee
+```
+
+One-off run without global install:
+
+```bash
+npx supabee --help
+pnpm dlx supabee --help
+bunx supabee --help
+```
+
+Project-local install (optional):
+
 ```bash
 npm install --save-dev supabee
 ```
@@ -57,7 +75,7 @@ npm install --save-dev supabee
 Run `init` to generate `supabee.config.json` (if it doesn't exist) and update `supabase/config.toml` seed paths:
 
 ```bash
-npx supabee init
+supabee init
 ```
 
 Review the generated `supabee.config.json` and adjust paths/limits for your project.
@@ -181,8 +199,10 @@ supabee sync data --no-backup
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase db reset`, restores deferred migrations, then reapplies them.
 
-If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest aligned local/remote migration version.
-This requires `supabase link` to be configured.
+If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest migration version that exists in both local and remote (works even when remote has gaps).
+When linked lookup succeeds, `supabee` stores the value in `supabee.config.json` as `postSeedCutoff`.
+If linked lookup fails (for example in CI), it falls back to `postSeedCutoff` from config.
+If not linked, `supabee` runs `supabase link` and retries once.
 
 ```bash
 # default re-apply mode: supabase migration up
@@ -208,6 +228,15 @@ supabee start
 
 # optional re-apply mode: psql
 supabee start --psql
+```
+
+### Supabase passthrough
+
+Unknown commands are forwarded to Supabase CLI:
+
+```bash
+supabee migration up   # forwards to: supabase migration up
+supabee db dump        # forwards to: supabase db dump
 ```
 
 ### Overriding paths
@@ -238,6 +267,7 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
 
 ```json
 {
+  "postSeedCutoff": "",
   "schema": {
     "input": "supabase/schemas/prod-schemas.sql",
     "output": "supabase/schemas/split",
@@ -281,6 +311,7 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
 | `data.keepFiles` | Files in the split dir to preserve across re-splits |
 | `data.ignoreInReconstruct` | Files to skip during reconstruction |
 | `init.seedSqlPaths` | Paths written to `supabase/config.toml` `[db.seed].sql_paths` |
+| `postSeedCutoff` | Fallback cutoff timestamp used by `db reset`/`start` when linked lookup is unavailable (for example in CI) |
 
 ### Table-specific rules
 

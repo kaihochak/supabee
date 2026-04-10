@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
 import { Command } from 'commander';
 import { runSchemaCommand } from './commands/schema.js';
 import { runDataCommand } from './commands/data.js';
@@ -27,6 +28,19 @@ function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOp
   }
   if (reconstructed) args.push(reconstructed);
   return args;
+}
+
+function readCliVersion(): string {
+  try {
+    const packageJsonPath = new URL('../package.json', import.meta.url);
+    const parsed = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+    if (typeof parsed.version === 'string' && parsed.version.trim() !== '') {
+      return parsed.version;
+    }
+  } catch {
+    // fallback below
+  }
+  return '0.0.0';
 }
 
 const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'help']);
@@ -99,6 +113,7 @@ async function maybePassthroughToSupabase(args: string[]): Promise<boolean> {
 const program = new Command();
 program
   .name('supabee')
+  .version(readCliVersion(), '-V, --version', 'display version number')
   .description('Supabase sync and migration orchestration CLI.')
   .showHelpAfterError('(run with --help for usage)')
   .addHelpText(

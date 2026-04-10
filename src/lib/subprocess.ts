@@ -27,11 +27,24 @@ function isCommandNotFoundError(error: unknown): boolean {
   return error.message.includes('Failed to start command:') && error.message.includes('ENOENT');
 }
 
+function isRetryableCommandStartError(error: unknown): boolean {
+  if (isCommandNotFoundError(error)) return true;
+  if (!(error instanceof Error)) return false;
+  if (process.platform !== 'win32') return false;
+  return error.message.includes('Failed to start command:') && error.message.includes('EINVAL');
+}
+
+function needsShellOnWindows(command: string): boolean {
+  if (process.platform !== 'win32') return false;
+  const extension = path.extname(command).toLowerCase();
+  return extension === '.cmd' || extension === '.bat';
+}
+
 function withWindowsCommandNotFoundDiagnostic(command: string, error: unknown): Error {
   if (!(error instanceof Error)) {
     return new Error(String(error));
   }
-  if (process.platform !== 'win32' || !isCommandNotFoundError(error)) {
+  if (process.platform !== 'win32' || (!isCommandNotFoundError(error) && !error.message.includes('EINVAL'))) {
     return error;
   }
 
@@ -40,6 +53,7 @@ function withWindowsCommandNotFoundDiagnostic(command: string, error: unknown): 
 
 Windows diagnostic:
 - Tried command variants automatically: ${command}, ${command}.exe, ${command}.cmd, ${command}.bat
+- For .cmd/.bat variants, supabee now runs them via Windows shell automatically
 - In PowerShell, run \`where.exe ${command}\` (not \`where ${command}\`, which maps to Where-Object)
 - Check resolution in pnpm context: \`pnpm exec where.exe ${command}\`
 - If still missing, reinstall the CLI and ensure its bin path is on PATH (common npm global bin: %AppData%\\npm)`,
@@ -62,7 +76,7 @@ async function runWithCommandFallback(
     } catch (error) {
       lastError = error;
       const hasMoreCandidates = index < candidates.length - 1;
-      if (!hasMoreCandidates || !isCommandNotFoundError(error)) {
+      if (!hasMoreCandidates || !isRetryableCommandStartError(error)) {
         throw withWindowsCommandNotFoundDiagnostic(command, error);
       }
     }
@@ -97,6 +111,7 @@ export async function runCommand(command: string, args: string[], options: RunCo
     const child = spawn(resolvedCommand, args, {
       cwd: options.cwd,
       env: getMergedEnv(options.env),
+      shell: needsShellOnWindows(resolvedCommand),
       stdio: 'inherit',
     });
 
@@ -118,6 +133,7 @@ export async function runCommandToFile(
     const child = spawn(resolvedCommand, args, {
       cwd: options.cwd,
       env: getMergedEnv(options.env),
+      shell: needsShellOnWindows(resolvedCommand),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -152,6 +168,7 @@ export async function runCommandCapture(
     const child = spawn(resolvedCommand, args, {
       cwd: options.cwd,
       env: getMergedEnv(options.env),
+      shell: needsShellOnWindows(resolvedCommand),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

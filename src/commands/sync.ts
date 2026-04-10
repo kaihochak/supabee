@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { resolveCommandConfig } from '../lib/config.js';
 import { info, ok, sectionWithNote, title } from '../lib/ui.js';
 import { runSchemaCommand } from './schema.js';
@@ -23,6 +24,15 @@ function buildWorkflowArgs(inputFile: string, options: SyncCommandOptions) {
   return args;
 }
 
+async function assertDumpHasContent(filePath: string) {
+  const stats = await fs.promises.stat(filePath);
+  if (stats.size === 0) {
+    throw new Error(
+      `Supabase dump produced an empty file: ${filePath}\nAborting before split so existing output files are not cleared.`,
+    );
+  }
+}
+
 export async function runSyncCommand(target: SyncTarget, options: SyncCommandOptions = {}) {
   const resolved =
     target === 'schema'
@@ -46,6 +56,7 @@ export async function runSyncCommand(target: SyncTarget, options: SyncCommandOpt
 
   await runCommandToFile('supabase', dumpArgs, resolved.inputFile);
   console.log(ok(`Dump written to: ${resolved.inputFile}`));
+  await assertDumpHasContent(resolved.inputFile);
 
   const workflowArgs = buildWorkflowArgs(resolved.inputFile, options);
   if (target === 'schema') {

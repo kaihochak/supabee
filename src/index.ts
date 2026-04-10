@@ -46,10 +46,17 @@ function detectWrapperInvocation(): 'pnpm' | 'npx' | 'bunx' | null {
   const userAgent = (process.env.npm_config_user_agent ?? '').toLowerCase();
   const execPath = (process.env.npm_execpath ?? '').toLowerCase();
   const npmCommand = (process.env.npm_command ?? '').toLowerCase();
+  const lifecycleScript = (process.env.npm_lifecycle_script ?? '').toLowerCase();
+  const packageManager = (process.env.npm_config_user_agent ?? '').split(' ')[0] ?? '';
 
   if (userAgent.includes('pnpm') || execPath.includes('pnpm')) return 'pnpm';
   if (userAgent.includes('bun') || execPath.includes('bun')) return 'bunx';
-  if (npmCommand === 'exec' || userAgent.includes('npm') || execPath.includes('npm-cli')) return 'npx';
+  if (npmCommand === 'exec') return 'npx';
+  if (packageManager.startsWith('pnpm/')) return 'pnpm';
+  if (packageManager.startsWith('bun/')) return 'bunx';
+  if (lifecycleScript.includes('pnpm ') || lifecycleScript.includes('pnpm\t')) return 'pnpm';
+  if (lifecycleScript.includes('bunx ') || lifecycleScript.includes('bunx\t')) return 'bunx';
+  if (lifecycleScript.includes('npx ') || lifecycleScript.includes('npx\t')) return 'npx';
 
   return null;
 }
@@ -57,12 +64,11 @@ function detectWrapperInvocation(): 'pnpm' | 'npx' | 'bunx' | null {
 function maybePrintGlobalInstallHint(args: string[]) {
   if (process.env.SUPABEE_NO_GLOBAL_HINT === '1') return;
   if (args.length === 0) return;
-  if (args.includes('--help') || args.includes('-h')) return;
 
   const wrapper = detectWrapperInvocation();
   if (!wrapper) return;
 
-  console.log(info(`Detected ${wrapper} invocation. Install globally for direct usage:`));
+  console.log(info(`Install globally for direct usage:`));
   console.log(warn('  npm i -g supabee  |  pnpm add -g supabee  |  bun add -g supabee'));
   console.log(info('One-off runners: npx supabee ... | pnpm dlx supabee ... | bunx supabee ...'));
   console.log('');

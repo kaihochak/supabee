@@ -10,6 +10,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "types": ["node"],
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,

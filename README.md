@@ -202,7 +202,8 @@ supabee sync data --force
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase db reset`, restores deferred migrations, then reapplies them.
 For historical data migrations at or before cutoff, `supabee` executes a temporary no-op stub during reset, then restores original SQL.
 Classification is automatic by SQL patterns (`INSERT/UPDATE/DELETE/...` vs `CREATE/ALTER/DROP ...`), and optional markers can override classification.
-Mixed schema+DML migrations are blocked and must be split.
+Mixed schema+DML migrations are blocked when they are after cutoff and must be split.
+Mixed migrations at/before cutoff run in compatibility mode by default (warning only). Use `--strict-mixed` to fail on any mixed migration.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest migration version that exists in both local and remote (works even when remote has gaps).
 When linked lookup succeeds, `supabee` stores the value in `supabee.config.json` as `postSeedCutoff` (or `postSeedCutoffByEnv.<env>` when `--env` is set).
@@ -217,6 +218,9 @@ supabee db reset --env staging
 
 # optional re-apply mode: psql
 supabee db reset 20260309180959 --psql
+
+# strict mixed policy
+supabee db reset --strict-mixed
 ```
 
 ### `start`
@@ -236,6 +240,9 @@ supabee start
 # optional re-apply mode: psql
 supabee start --psql
 supabee start --env production
+
+# strict mixed policy
+supabee start --strict-mixed
 ```
 
 ### `cutoff detect`
@@ -255,6 +262,9 @@ Classifies migration files as `data`, `schema`, `mixed`, or `unknown`, and shows
 ```bash
 supabee migration audit
 supabee migration audit --migrations-dir supabase/migrations
+supabee migration audit --verbose
+supabee migration audit --json
+supabee migration audit --json --verbose
 ```
 
 ### `migration mark`
@@ -415,6 +425,7 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
 `db reset` supports:
 
 - `--psql`: apply deferred migrations via `psql` instead of `supabase migration up`
+- `--strict-mixed`: fail when any mixed schema+DML migration is detected (default behavior only fails when mixed migrations are after cutoff)
 - `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
 - `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
 - `--env <name>`: use `postSeedCutoffByEnv.<name>` as fallback cutoff source
@@ -422,6 +433,7 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
 `start` supports:
 
 - `--psql`: apply deferred migrations via `psql` instead of `supabase migration up`
+- `--strict-mixed`: fail when any mixed schema+DML migration is detected (default behavior only fails when mixed migrations are after cutoff)
 - `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
 - `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
 - `--env <name>`: use `postSeedCutoffByEnv.<name>` as fallback cutoff source

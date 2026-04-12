@@ -16,6 +16,11 @@ export type MigrationClassificationResult = {
   hasDataMarker: boolean;
   hasSchemaMarker: boolean;
   recommendedMarker: RecommendedMarker;
+  evidence: {
+    markerMatches: Array<{ marker: string; line: number; snippet: string }>;
+    ddlMatches: Array<{ pattern: string; line: number; snippet: string }>;
+    dmlMatches: Array<{ pattern: string; line: number; snippet: string }>;
+  };
 };
 
 export type MigrationClassifierOptions = {
@@ -28,6 +33,26 @@ const DEFAULT_SCHEMA_MARKER = 'supabee:schema-migration';
 const DDL_PATTERN =
   /\b(create|alter|drop)\s+(table|type|schema|extension|index|view|materialized|function|policy|trigger|publication|subscription)\b/i;
 const DML_PATTERN = /\b(insert\s+into|update\s+\S+|delete\s+from|merge\s+into|truncate\s+table)\b/i;
+const DDL_PATTERNS: Array<{ pattern: string; regex: RegExp }> = [
+  { pattern: 'CREATE TABLE', regex: /\bcreate\s+table\b/gi },
+  { pattern: 'ALTER TABLE', regex: /\balter\s+table\b/gi },
+  { pattern: 'DROP TABLE', regex: /\bdrop\s+table\b/gi },
+  { pattern: 'CREATE VIEW', regex: /\bcreate\s+view\b/gi },
+  { pattern: 'CREATE MATERIALIZED VIEW', regex: /\bcreate\s+materialized\s+view\b/gi },
+  { pattern: 'CREATE FUNCTION', regex: /\bcreate\s+function\b/gi },
+  { pattern: 'ALTER FUNCTION', regex: /\balter\s+function\b/gi },
+  { pattern: 'CREATE POLICY', regex: /\bcreate\s+policy\b/gi },
+  { pattern: 'CREATE TRIGGER', regex: /\bcreate\s+trigger\b/gi },
+  { pattern: 'CREATE TYPE', regex: /\bcreate\s+type\b/gi },
+  { pattern: 'CREATE INDEX', regex: /\bcreate\s+(unique\s+)?index\b/gi },
+];
+const DML_PATTERNS: Array<{ pattern: string; regex: RegExp }> = [
+  { pattern: 'INSERT INTO', regex: /\binsert\s+into\b/gi },
+  { pattern: 'UPDATE', regex: /\bupdate\s+\S+/gi },
+  { pattern: 'DELETE FROM', regex: /\bdelete\s+from\b/gi },
+  { pattern: 'MERGE INTO', regex: /\bmerge\s+into\b/gi },
+  { pattern: 'TRUNCATE TABLE', regex: /\btruncate\s+table\b/gi },
+];
 
 function resolveDataMarker(): string {
   const configured = readToolConfig().dataMigrationMarker;
@@ -45,6 +70,65 @@ function hasMarker(sql: string, marker: string): boolean {
   const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`^\\s*--\\s*${escaped}(?:\\s|$)`, 'im');
   return regex.test(sql);
+}
+
+function lineNumberAtIndex(text: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index && i < text.length; i += 1) {
+    if (text[i] === '\n') line += 1;
+  }
+  return line;
+}
+
+function lineSnippetAtIndex(text: string, index: number): string {
+  const start = text.lastIndexOf('\n', Math.max(0, index - 1)) + 1;
+  const end = text.indexOf('\n', index);
+  const raw = text.slice(start, end === -1 ? text.length : end).trim();
+  return raw.length > 180 ? `${raw.slice(0, 177)}...` : raw;
+}
+
+function collectPatternMatches(
+  text: string,
+  patterns: Array<{ pattern: string; regex: RegExp }>,
+  limit = 3,
+): Array<{ pattern: string; line: number; snippet: string }> {
+  const matches: Array<{ pattern: string; line: number; snippet: string }> = [];
+
+  for (const item of patterns) {
+    item.regex.lastIndex = 0;
+    let match: RegExpExecArray | null = item.regex.exec(text);
+    while (match) {
+      matches.push({
+        pattern: item.pattern,
+        line: lineNumberAtIndex(text, match.index),
+        snippet: lineSnippetAtIndex(text, match.index),
+      });
+      if (matches.length >= limit) return matches;
+      match = item.regex.exec(text);
+    }
+  }
+
+  return matches;
+}
+
+function collectMarkerMatches(sql: string, markers: string[]): Array<{ marker: string; line: number; snippet: string }> {
+  const matches: Array<{ marker: string; line: number; snippet: string }> = [];
+
+  for (const marker of markers) {
+    const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^\\s*--\\s*${escaped}(?:\\s|$).*`, 'gim');
+    let match: RegExpExecArray | null = regex.exec(sql);
+    while (match) {
+      matches.push({
+        marker,
+        line: lineNumberAtIndex(sql, match.index),
+        snippet: match[0].trim(),
+      });
+      match = regex.exec(sql);
+    }
+  }
+
+  return matches;
 }
 
 function stripCommentsAndStrings(sql: string): string {
@@ -161,14 +245,25 @@ async function listMigrations(migrationsDir: string): Promise<Array<{ fileName: 
   return files;
 }
 
-function classifySql(sql: string): { classification: MigrationClassification; source: MigrationClassificationSource; reasons: string[]; hasDataMarker: boolean; hasSchemaMarker: boolean } {
+function classifySql(sql: string): {
+  classification: MigrationClassification;
+  source: MigrationClassificationSource;
+  reasons: string[];
+  hasDataMarker: boolean;
+  hasSchemaMarker: boolean;
+  evidence: MigrationClassificationResult['evidence'];
+} {
   const dataMarker = resolveDataMarker();
   const schemaMarker = resolveSchemaMarker();
+  const markerMatches = collectMarkerMatches(sql, [dataMarker, schemaMarker]);
   const hasData = hasMarker(sql, dataMarker);
   const hasSchema = hasMarker(sql, schemaMarker);
   const normalized = stripCommentsAndStrings(sql);
   const hasDdl = DDL_PATTERN.test(normalized);
   const hasDml = DML_PATTERN.test(normalized);
+  const ddlMatches = collectPatternMatches(normalized, DDL_PATTERNS);
+  const dmlMatches = collectPatternMatches(normalized, DML_PATTERNS);
+  const evidence = { markerMatches, ddlMatches, dmlMatches };
 
   if (hasData && hasSchema) {
     return {
@@ -177,6 +272,7 @@ function classifySql(sql: string): { classification: MigrationClassification; so
       reasons: [`Both markers found (${dataMarker}, ${schemaMarker}).`],
       hasDataMarker: true,
       hasSchemaMarker: true,
+      evidence,
     };
   }
   if (hasDdl && hasDml) {
@@ -191,6 +287,7 @@ function classifySql(sql: string): { classification: MigrationClassification; so
       reasons: [`Detected both schema DDL and data DML patterns.${markerReason}`],
       hasDataMarker: hasData,
       hasSchemaMarker: hasSchema,
+      evidence,
     };
   }
 
@@ -201,6 +298,7 @@ function classifySql(sql: string): { classification: MigrationClassification; so
       reasons: [`Marker found: -- ${dataMarker}`],
       hasDataMarker: true,
       hasSchemaMarker: false,
+      evidence,
     };
   }
   if (hasSchema) {
@@ -210,6 +308,7 @@ function classifySql(sql: string): { classification: MigrationClassification; so
       reasons: [`Marker found: -- ${schemaMarker}`],
       hasDataMarker: false,
       hasSchemaMarker: true,
+      evidence,
     };
   }
   if (hasDml) {
@@ -219,6 +318,7 @@ function classifySql(sql: string): { classification: MigrationClassification; so
       reasons: ['Detected data DML patterns (INSERT/UPDATE/DELETE/MERGE/TRUNCATE).'],
       hasDataMarker: false,
       hasSchemaMarker: false,
+      evidence,
     };
   }
   if (hasDdl) {
@@ -228,6 +328,7 @@ function classifySql(sql: string): { classification: MigrationClassification; so
       reasons: ['Detected schema DDL patterns (CREATE/ALTER/DROP ...).'],
       hasDataMarker: false,
       hasSchemaMarker: false,
+      evidence,
     };
   }
 
@@ -237,6 +338,7 @@ function classifySql(sql: string): { classification: MigrationClassification; so
     reasons: ['No marker and no recognized DDL/DML patterns.'],
     hasDataMarker: false,
     hasSchemaMarker: false,
+    evidence,
   };
 }
 
@@ -267,6 +369,7 @@ export async function classifyMigrations(options: MigrationClassifierOptions): P
       reasons: classified.reasons,
       hasDataMarker: classified.hasDataMarker,
       hasSchemaMarker: classified.hasSchemaMarker,
+      evidence: classified.evidence,
       recommendedMarker: recommendedMarkerFor({
         classification: classified.classification,
         hasDataMarker: classified.hasDataMarker,

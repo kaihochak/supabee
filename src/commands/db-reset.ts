@@ -10,6 +10,7 @@ export type PostSeedCommandOptions = {
   migrationsDir?: string;
   tempDir?: string;
   env?: string;
+  strictMixed?: boolean;
 };
 
 type PostSeedMode = 'reset' | 'start';
@@ -101,6 +102,7 @@ async function runPostSeedCommand(
   const activeTempDir = path.join(tempRootDir, `deferred_${Date.now()}_${process.pid}`);
   const activeStubDir = path.join(tempRootDir, `stubbed_${Date.now()}_${process.pid}`);
   const usePsql = options.psql === true;
+  const strictMixed = options.strictMixed === true;
   const markers = resolveMarkers();
 
   await ensureDirectoryExists(migrationsDir);
@@ -122,17 +124,40 @@ async function runPostSeedCommand(
   console.log(info(`tempDir = ${activeTempDir}`));
   console.log(info(`dataMarker = ${markers.dataMarker}`));
   console.log(info(`schemaMarker = ${markers.schemaMarker}`));
+  console.log(info(`strictMixed = ${strictMixed ? 'true' : 'false'}`));
   console.log(info(`applyMode = ${usePsql ? 'psql' : 'supabase migration up'}`));
   console.log('');
 
   const classified = await classifyMigrations({ migrationsDir });
   const mixedFiles = classified.filter((migration) => migration.classification === 'mixed');
-  if (mixedFiles.length > 0) {
+  const mixedBeforeOrAtCutoff = mixedFiles.filter((migration) => migration.timestamp <= cutoff);
+  const mixedAfterCutoff = mixedFiles.filter((migration) => migration.timestamp > cutoff);
+  if (strictMixed && mixedFiles.length > 0) {
     const mixedList = mixedFiles.map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`).join('\n');
     throw new Error(
-      `Mixed schema+DML migrations are not supported for reset/start orchestration.\n` +
+      `Mixed schema+DML migrations are not supported with --strict-mixed.\n` +
         `Split each mixed migration into separate schema-only and data-only files:\n${mixedList}`,
     );
+  }
+  if (mixedAfterCutoff.length > 0) {
+    const mixedList = mixedAfterCutoff
+      .map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`)
+      .join('\n');
+    throw new Error(
+      `Mixed schema+DML migrations detected after cutoff ${resolvedCutoffRaw}.\n` +
+        `Split each mixed migration into separate schema-only and data-only files:\n${mixedList}`,
+    );
+  }
+  if (mixedBeforeOrAtCutoff.length > 0) {
+    console.log(
+      info(
+        `Detected ${mixedBeforeOrAtCutoff.length} mixed migration(s) at/before cutoff; continuing in compatibility mode.`,
+      ),
+    );
+    for (const migration of mixedBeforeOrAtCutoff) {
+      console.log(info(`  ${migration.fileName}`));
+    }
+    console.log('');
   }
 
   const unknownFiles = classified.filter((migration) => migration.classification === 'unknown');

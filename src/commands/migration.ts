@@ -14,6 +14,8 @@ const DEFAULT_MIGRATIONS_DIR = 'supabase/migrations';
 
 export type MigrationAuditOptions = {
   migrationsDir?: string;
+  json?: boolean;
+  verbose?: boolean;
 };
 
 export type MigrationMarkOptions = {
@@ -98,23 +100,26 @@ function printClassificationRow(result: MigrationClassificationResult) {
   console.log(info(`  recommendation = ${recommendationText(result)}`));
 }
 
-export async function runMigrationAuditCommand(options: MigrationAuditOptions = {}) {
-  const migrationsDir = absoluteMigrationsDir(options.migrationsDir);
-  await ensureDirectoryExists(migrationsDir);
-  const markers = resolveMarkers();
-  const results = await classifyMigrations({ migrationsDir });
+function printEvidenceRow(result: MigrationClassificationResult) {
+  const markerBits =
+    result.evidence.markerMatches.length > 0
+      ? result.evidence.markerMatches.map((match) => `${match.marker}@L${match.line}`).join(', ')
+      : 'none';
+  const ddlBits =
+    result.evidence.ddlMatches.length > 0
+      ? result.evidence.ddlMatches.map((match) => `${match.pattern}@L${match.line}`).join(', ')
+      : 'none';
+  const dmlBits =
+    result.evidence.dmlMatches.length > 0
+      ? result.evidence.dmlMatches.map((match) => `${match.pattern}@L${match.line}`).join(', ')
+      : 'none';
 
-  console.log(sectionWithNote(title('Migration audit'), 'Classifies migration files as data/schema/mixed/unknown.'));
-  console.log(info(`migrationsDir = ${migrationsDir}`));
-  console.log(info(`dataMarker = ${markers.dataMarker}`));
-  console.log(info(`schemaMarker = ${markers.schemaMarker}`));
-  console.log('');
+  console.log(info(`  evidence.markers = ${markerBits}`));
+  console.log(info(`  evidence.ddl = ${ddlBits}`));
+  console.log(info(`  evidence.dml = ${dmlBits}`));
+}
 
-  if (results.length === 0) {
-    console.log(warn('No migration files found.'));
-    return;
-  }
-
+function summarizeResults(results: MigrationClassificationResult[]) {
   let dataCount = 0;
   let schemaCount = 0;
   let mixedCount = 0;
@@ -127,13 +132,78 @@ export async function runMigrationAuditCommand(options: MigrationAuditOptions = 
     if (result.classification === 'mixed') mixedCount += 1;
     if (result.classification === 'unknown') unknownCount += 1;
     if (result.recommendedMarker) suggestedMarkerCount += 1;
+  }
+
+  return { dataCount, schemaCount, mixedCount, unknownCount, suggestedMarkerCount };
+}
+
+export async function runMigrationAuditCommand(options: MigrationAuditOptions = {}) {
+  const migrationsDir = absoluteMigrationsDir(options.migrationsDir);
+  await ensureDirectoryExists(migrationsDir);
+  const markers = resolveMarkers();
+  const results = await classifyMigrations({ migrationsDir });
+  const summary = summarizeResults(results);
+
+  if (options.json === true) {
+    const payload = {
+      metadata: {
+        migrationsDir,
+        dataMarker: markers.dataMarker,
+        schemaMarker: markers.schemaMarker,
+        verbose: options.verbose === true,
+      },
+      summary: {
+        data: summary.dataCount,
+        schema: summary.schemaCount,
+        mixed: summary.mixedCount,
+        unknown: summary.unknownCount,
+        suggestedMarkerUpdates: summary.suggestedMarkerCount,
+      },
+      results: results.map((result) => ({
+        fileName: result.fileName,
+        filePath: result.filePath,
+        timestamp: result.timestamp,
+        classification: result.classification,
+        source: result.source,
+        reasons: result.reasons,
+        recommendation: recommendationText(result),
+        recommendedMarker: result.recommendedMarker,
+        hasDataMarker: result.hasDataMarker,
+        hasSchemaMarker: result.hasSchemaMarker,
+        ...(options.verbose === true ? { evidence: result.evidence } : {}),
+      })),
+    };
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+
+  console.log(sectionWithNote(title('Migration audit'), 'Classifies migration files as data/schema/mixed/unknown.'));
+  console.log(info(`migrationsDir = ${migrationsDir}`));
+  console.log(info(`dataMarker = ${markers.dataMarker}`));
+  console.log(info(`schemaMarker = ${markers.schemaMarker}`));
+  console.log(info(`verbose = ${options.verbose === true ? 'true' : 'false'}`));
+  console.log('');
+
+  if (results.length === 0) {
+    console.log(warn('No migration files found.'));
+    return;
+  }
+
+  for (const result of results) {
     printClassificationRow(result);
+    if (options.verbose === true) {
+      printEvidenceRow(result);
+    }
   }
 
   console.log('');
-  console.log(ok(`Summary: data=${dataCount} schema=${schemaCount} mixed=${mixedCount} unknown=${unknownCount}`));
-  console.log(info(`Suggested marker updates: ${suggestedMarkerCount}`));
-  if (mixedCount > 0) {
+  console.log(
+    ok(
+      `Summary: data=${summary.dataCount} schema=${summary.schemaCount} mixed=${summary.mixedCount} unknown=${summary.unknownCount}`,
+    ),
+  );
+  console.log(info(`Suggested marker updates: ${summary.suggestedMarkerCount}`));
+  if (summary.mixedCount > 0) {
     console.log(warn('Mixed files detected. Split schema and data into separate migration files.'));
   }
 }

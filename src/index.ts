@@ -79,6 +79,20 @@ function maybePrintGlobalInstallHint(args: string[]) {
   console.log('');
 }
 
+function readCliVersion(): string {
+  try {
+    const packageJsonPath = new URL('../package.json', import.meta.url);
+    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+    const parsed = JSON.parse(raw) as { version?: string };
+    if (typeof parsed.version === 'string' && parsed.version.trim() !== '') {
+      return parsed.version;
+    }
+  } catch {
+    // fall through
+  }
+  return '0.0.0';
+}
+
 async function maybePassthroughToSupabase(args: string[]): Promise<boolean> {
   const topLevel = firstNonOptionToken(args);
   if (!topLevel) return false;
@@ -227,7 +241,9 @@ migrationCommand
   .command('audit')
   .description('Classify migrations as data/schema/mixed/unknown and show suggested marker actions')
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
-  .action((options: { migrationsDir?: string } = {}) => runMigrationAuditCommand(options));
+  .option('--json', 'Print machine-readable audit output')
+  .option('--verbose', 'Include detailed classifier evidence in output')
+  .action((options: { migrationsDir?: string; json?: boolean; verbose?: boolean } = {}) => runMigrationAuditCommand(options));
 
 migrationCommand
   .command('mark')
@@ -253,6 +269,7 @@ dbCommand
   .command('reset [cutoffTimestamp]')
   .description('Reset DB, then apply deferred post-seed migrations (auto cutoff if omitted)')
   .option('--psql', 'Apply deferred migrations via raw psql instead of supabase migration up')
+  .option('--strict-mixed', 'Fail when any mixed schema+DML migration is detected (default: fail only after cutoff)')
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
@@ -274,7 +291,7 @@ Examples
   .action(
     (
       cutoffTimestamp: string | undefined,
-      options: { psql?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
+      options: { psql?: boolean; strictMixed?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
     ) => runDbResetCommand(cutoffTimestamp, options),
   );
 
@@ -282,6 +299,7 @@ program
   .command('start [cutoffTimestamp]')
   .description('Start Supabase with deferred post-seed migrations applied after startup')
   .option('--psql', 'Apply deferred migrations via raw psql instead of supabase migration up')
+  .option('--strict-mixed', 'Fail when any mixed schema+DML migration is detected (default: fail only after cutoff)')
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
@@ -303,7 +321,7 @@ Examples
   .action(
     (
       cutoffTimestamp: string | undefined,
-      options: { psql?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
+      options: { psql?: boolean; strictMixed?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
     ) => runStartCommand(cutoffTimestamp, options),
   );
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
 import { Command } from 'commander';
 import { runSchemaCommand } from './commands/schema.js';
 import { runDataCommand } from './commands/data.js';
@@ -116,6 +117,7 @@ async function maybePassthroughToSupabase(args: string[]): Promise<boolean> {
 const program = new Command();
 program
   .name('supabee')
+  .version(readCliVersion(), '-V, --version', 'display version number')
   .description('Supabase sync and migration orchestration CLI.')
   .showHelpAfterError('(run with --help for usage)')
   .addHelpText(

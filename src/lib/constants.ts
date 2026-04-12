@@ -10,6 +10,8 @@ export type DataTableRule = {
 
 export type ToolConfig = {
   postSeedCutoff?: string;
+  postSeedCutoffByEnv?: Record<string, string>;
+  dataMigrationMarker?: string;
   schema?: {
     input?: string;
     output?: string;

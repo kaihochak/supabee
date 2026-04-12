@@ -6,6 +6,7 @@ import { runDataCommand } from './commands/data.js';
 import { runInitCommand } from './commands/init.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runDbResetCommand, runStartCommand } from './commands/db-reset.js';
+import { runCutoffDetectCommand } from './commands/cutoff.js';
 import { runCommand } from './lib/subprocess.js';
 import { error as errText, info, warn } from './lib/ui.js';
 
@@ -13,6 +14,7 @@ type StepCliOptions = {
   input?: string;
   output?: string;
   backup?: boolean;
+  force?: boolean;
 };
 
 function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOptions = {}): string[] {
@@ -29,7 +31,7 @@ function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOp
   return args;
 }
 
-const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'help']);
+const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'cutoff', 'help']);
 const KNOWN_DB_SUBCOMMANDS = new Set(['reset', 'help']);
 
 function firstNonOptionToken(args: string[]): { token: string; index: number } | null {
@@ -178,9 +180,8 @@ syncCommand
   .option('--output <path>', 'Split output path override for schema processing')
   .option('--backup', 'Backup existing split output before replacing')
   .option('--no-backup', 'Do not backup dirty split output folder before split')
-  .action(async (options: StepCliOptions = {}) => {
-    await runSyncCommand('schema', options);
-  });
+  .option('--force', 'Skip linked migration alignment preflight for sync')
+  .action((options: StepCliOptions = {}) => runSyncCommand('schema', options));
 
 syncCommand
   .command('data')
@@ -189,9 +190,19 @@ syncCommand
   .option('--output <path>', 'Split output path override for data processing')
   .option('--backup', 'Backup existing split output before replacing')
   .option('--no-backup', 'Do not backup dirty split output folder before split')
-  .action(async (options: StepCliOptions = {}) => {
-    await runSyncCommand('data', options);
-  });
+  .option('--force', 'Skip linked migration alignment preflight for sync')
+  .action((options: StepCliOptions = {}) => runSyncCommand('data', options));
+
+const cutoffCommand = program.command('cutoff').description('Cutoff detection helpers');
+
+cutoffCommand
+  .command('detect [cutoffTimestamp]')
+  .description('Resolve cutoff from argument, linked migration alignment, or configured fallback')
+  .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
+  .option('--json', 'Print machine-readable JSON output')
+  .action((cutoffTimestamp: string | undefined, options: { env?: string; json?: boolean } = {}) =>
+    runCutoffDetectCommand(cutoffTimestamp, options),
+  );
 
 const dbCommand = program.command('db').description('Database orchestration commands');
 
@@ -201,6 +212,7 @@ dbCommand
   .option('--psql', 'Apply deferred migrations via raw psql instead of supabase migration up')
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
+  .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
   .addHelpText(
     'after',
     `
@@ -217,12 +229,10 @@ Examples
 `,
   )
   .action(
-    async (
+    (
       cutoffTimestamp: string | undefined,
-      options: { psql?: boolean; migrationsDir?: string; tempDir?: string } = {},
-    ) => {
-      await runDbResetCommand(cutoffTimestamp, options);
-    },
+      options: { psql?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
+    ) => runDbResetCommand(cutoffTimestamp, options),
   );
 
 program
@@ -231,6 +241,7 @@ program
   .option('--psql', 'Apply deferred migrations via raw psql instead of supabase migration up')
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
+  .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
   .addHelpText(
     'after',
     `
@@ -247,12 +258,10 @@ Examples
 `,
   )
   .action(
-    async (
+    (
       cutoffTimestamp: string | undefined,
-      options: { psql?: boolean; migrationsDir?: string; tempDir?: string } = {},
-    ) => {
-      await runStartCommand(cutoffTimestamp, options);
-    },
+      options: { psql?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
+    ) => runStartCommand(cutoffTimestamp, options),
   );
 
 async function main() {

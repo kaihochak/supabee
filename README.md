@@ -201,6 +201,30 @@ supabee sync data --force
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase db reset`, restores deferred migrations, then reapplies them.
 For historical data migrations marked `-- supabee:data-migration` at or before cutoff, `supabee` executes a temporary no-op stub during reset, then restores original SQL.
+Add the marker as a SQL comment at the top of the migration file (for example `supabase/migrations/20260401120000_backfill_domains.sql`).
+
+Example migration file:
+
+```sql
+-- supabee:data-migration
+
+INSERT INTO domains (id, name, slug, description, created_at, updated_at, status_id)
+SELECT
+  gen_random_uuid(),
+  v.name,
+  v.slug,
+  v.description,
+  now(),
+  now(),
+  s.id
+FROM (
+  VALUES
+    ('Arts and Design', 'arts-and-design', 'Visual arts, performing arts, design, and architecture'),
+    ('Humanities', 'humanities', 'History, philosophy, literature, cultural studies, and religious studies')
+) AS v(name, slug, description)
+JOIN statuses s ON s.name = 'verified'
+WHERE NOT EXISTS (SELECT 1 FROM domains d WHERE d.slug = v.slug);
+```
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest migration version that exists in both local and remote (works even when remote has gaps).
 When linked lookup succeeds, `supabee` stores the value in `supabee.config.json` as `postSeedCutoff` (or `postSeedCutoffByEnv.<env>` when `--env` is set).
@@ -220,7 +244,7 @@ supabee db reset 20260309180959 --psql
 ### `start`
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase start`, restores deferred migrations, then reapplies them.
-Historical `-- supabee:data-migration` files at or before cutoff are stubbed during the run, then restored.
+For marked historical data-migration files, `supabee` temporarily swaps the file body to a no-op during the run, then restores the original SQL file content.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` the same way as `db reset`.
 
@@ -411,7 +435,7 @@ Recommended approach:
 
 1. Keep schema structure changes in migrations.
 2. Keep baseline/reference seed rows in seed files.
-3. Put data mutations in dedicated migration files marked `-- supabee:data-migration`.
+3. Put data mutations in dedicated migration files and add `-- supabee:data-migration` at the top of that SQL file.
 4. Keep marked files free of schema DDL (`CREATE`/`ALTER`/`DROP ...`) so they can be safely stubbed when historical.
 5. Make migration-time data mutations idempotent (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, guarded updates).
 

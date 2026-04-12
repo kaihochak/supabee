@@ -297,6 +297,11 @@ function ensureConfigFile() {
   // Fallback: write minimal default config
   const minimal = {
     postSeedCutoff: '',
+    postSeedCutoffByEnv: {
+      staging: '',
+      production: '',
+    },
+    dataMigrationMarker: 'supabee:data-migration',
     schema: {
       input: 'supabase/schemas/prod-schemas.sql',
       output: 'supabase/schemas/split',

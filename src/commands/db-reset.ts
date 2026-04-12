@@ -1,186 +1,112 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { runCommand, runCommandCapture } from '../lib/subprocess.js';
-import { readToolConfig, updateToolConfig } from '../lib/config.js';
-import { sectionWithNote, title, info, ok, warn } from '../lib/ui.js';
+import { runCommand } from '../lib/subprocess.js';
+import { readToolConfig } from '../lib/config.js';
+import { sectionWithNote, title, info, ok } from '../lib/ui.js';
+import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cutoff.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
   migrationsDir?: string;
   tempDir?: string;
+  env?: string;
 };
 
 type MigrationFile = {
   fileName: string;
   timestamp: number;
 };
-
-type MigrationListRow = {
-  local: string;
-  remote: string;
-  timeUtc: string;
-};
-
 type PostSeedMode = 'reset' | 'start';
-type CutoffSource = 'argument' | 'linked' | 'config';
 
 const DEFAULT_MIGRATIONS_DIR = 'supabase/migrations';
 const DEFAULT_TEMP_DIR = 'supabase/.tmp-migrations';
+const DEFAULT_DATA_MIGRATION_MARKER = 'supabee:data-migration';
+const DATA_MIGRATION_STUB_HEADER = '-- supabee:auto-stub:data-migration';
+const SCHEMA_DDL_PATTERN =
+  /\b(create|alter|drop)\s+(table|type|schema|extension|index|view|materialized|function|policy|trigger|publication|subscription)\b/i;
 
-function parseCutoffTimestamp(raw: string): number {
-  const value = raw.trim();
-  if (!/^\d+$/.test(value)) {
-    throw new Error(`Invalid cutoff timestamp "${raw}". Expected numeric format like 20260309180959.`);
-  }
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`Invalid cutoff timestamp "${raw}".`);
-  }
-  return parsed;
+function resolveDataMigrationMarker(): string {
+  const configured = readToolConfig().dataMigrationMarker;
+  if (typeof configured === 'string' && configured.trim()) return configured.trim();
+  return DEFAULT_DATA_MIGRATION_MARKER;
 }
 
-function isValidMigrationVersion(raw: string): boolean {
-  return /^\d+$/.test(raw.trim());
+function hasDataMigrationMarker(sql: string, marker: string): boolean {
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`^\\s*--\\s*${escaped}(?:\\s|$)`, 'im');
+  return regex.test(sql);
 }
 
-function compareMigrationVersions(a: string, b: string): number {
-  const trimmedA = a.trim();
-  const trimmedB = b.trim();
-  if (trimmedA.length !== trimmedB.length) {
-    return trimmedA.length - trimmedB.length;
-  }
-  return trimmedA.localeCompare(trimmedB);
+function stripCommentOnlyLines(sql: string): string {
+  return sql
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n');
 }
 
-function parseMigrationListOutput(output: string): MigrationListRow[] {
-  const rows: MigrationListRow[] = [];
-  const lines = output.split('\n');
+type ClassifiedMigration = MigrationFile & {
+  isDataMigration: boolean;
+};
 
-  for (const rawLine of lines) {
-    const line = rawLine.replaceAll('│', '|').trimEnd();
-    if (!line.includes('|')) continue;
-    if (line.includes('Local') && line.includes('Remote')) continue;
-    if (line.match(/^-+\|-+\|-+$/)) continue;
+async function classifyMigrations(
+  migrationsDir: string,
+  migrations: MigrationFile[],
+  marker: string,
+): Promise<ClassifiedMigration[]> {
+  const classified: ClassifiedMigration[] = [];
 
-    const parts = line.split('|').map((part) => part.trim());
-    if (parts.length < 3) continue;
-    if (/^-+$/.test(parts[0]) && /^-+$/.test(parts[1])) continue;
-
-    const local = parts[0];
-    const remote = parts[1];
-    const timeUtc = parts[2];
-    if (!local && !remote) continue;
-
-    rows.push({ local, remote, timeUtc });
-  }
-
-  return rows;
-}
-
-async function detectCutoffFromLinkedProject(): Promise<string> {
-  const { stdout } = await runCommandCapture('supabase', ['migration', 'list', '--linked']);
-  const rows = parseMigrationListOutput(stdout);
-  if (rows.length === 0) {
-    throw new Error(
-      'Could not read migration list from linked project. Provide cutoff timestamp explicitly or run `supabase link` first.',
-    );
-  }
-
-  const localVersions = new Set<string>();
-  const remoteVersions = new Set<string>();
-  for (const row of rows) {
-    const local = row.local;
-    const remote = row.remote;
-    if (isValidMigrationVersion(local)) localVersions.add(local);
-    if (isValidMigrationVersion(remote)) remoteVersions.add(remote);
-  }
-
-  let latestAligned: string | null = null;
-  for (const localVersion of localVersions) {
-    if (!remoteVersions.has(localVersion)) continue;
-    if (!latestAligned || compareMigrationVersions(localVersion, latestAligned) > 0) {
-      latestAligned = localVersion;
-    }
-  }
-
-  if (!latestAligned) {
-    throw new Error(
-      'No common local/remote migration version found. Provide cutoff timestamp explicitly (e.g. `supabee db reset 20260309180959`).',
-    );
-  }
-
-  return latestAligned;
-}
-
-function isLikelyUnlinkedError(error: unknown): boolean {
-  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-  return (
-    message.includes('supabase link') ||
-    message.includes('not linked') ||
-    message.includes('project ref') ||
-    message.includes('cannot find project')
-  );
-}
-
-async function detectCutoffWithAutoLinkRetry(): Promise<string> {
-  try {
-    return await detectCutoffFromLinkedProject();
-  } catch (error) {
-    if (!isLikelyUnlinkedError(error)) {
-      throw error;
-    }
-    console.log(info('No linked Supabase project detected. Running `supabase link`...'));
-    await runCommand('supabase', ['link']);
-    return detectCutoffFromLinkedProject();
-  }
-}
-
-function readConfiguredPostSeedCutoff(): string | null {
-  const configured = readToolConfig().postSeedCutoff;
-  if (typeof configured !== 'string') return null;
-
-  const trimmed = configured.trim();
-  if (!trimmed) return null;
-  if (!isValidMigrationVersion(trimmed)) {
-    console.log(warn(`Ignoring invalid postSeedCutoff value in config: ${configured}`));
-    return null;
-  }
-
-  return trimmed;
-}
-
-function persistPostSeedCutoff(cutoffTimestamp: string) {
-  try {
-    const configPath = updateToolConfig((current) => ({ ...current, postSeedCutoff: cutoffTimestamp }));
-    console.log(info(`Saved postSeedCutoff = ${cutoffTimestamp} in ${configPath}`));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.log(warn(`Unable to persist postSeedCutoff: ${message}`));
-  }
-}
-
-async function resolveCutoffTimestamp(cutoffTimestampRaw: string | undefined): Promise<{ value: string; source: CutoffSource }> {
-  if (cutoffTimestampRaw && cutoffTimestampRaw.trim()) {
-    return { value: cutoffTimestampRaw.trim(), source: 'argument' };
-  }
-
-  try {
-    const detected = await detectCutoffWithAutoLinkRetry();
-    persistPostSeedCutoff(detected);
-    return { value: detected, source: 'linked' };
-  } catch (error) {
-    const fallback = readConfiguredPostSeedCutoff();
-    if (fallback) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.log(warn(`Could not auto-detect cutoff from linked project. Falling back to postSeedCutoff: ${fallback}`));
-      console.log(info(message));
-      return { value: fallback, source: 'config' };
+  for (const migration of migrations) {
+    const filePath = path.join(migrationsDir, migration.fileName);
+    const sql = await fs.promises.readFile(filePath, 'utf8');
+    const isDataMigration = hasDataMigrationMarker(sql, marker);
+    if (isDataMigration) {
+      const sqlWithoutCommentLines = stripCommentOnlyLines(sql);
+      if (SCHEMA_DDL_PATTERN.test(sqlWithoutCommentLines)) {
+        throw new Error(
+          `Migration "${migration.fileName}" is marked "${marker}" but contains schema DDL. Split schema changes into a separate migration file.`,
+        );
+      }
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Could not auto-detect cutoff from linked project and no postSeedCutoff is configured.\n${message}`,
-    );
+    classified.push({ ...migration, isDataMigration });
+  }
+
+  return classified;
+}
+
+function buildDataMigrationStub(fileName: string, cutoffTimestampRaw: string): string {
+  return `${DATA_MIGRATION_STUB_HEADER}
+-- original file: ${fileName}
+-- reason: historical data migration at/before cutoff ${cutoffTimestampRaw}
+SELECT 1;
+`;
+}
+
+async function stubHistoricalDataMigrations(
+  fileNames: string[],
+  migrationsDir: string,
+  stubOriginalsDir: string,
+  cutoffTimestampRaw: string,
+) {
+  if (fileNames.length === 0) return;
+
+  await fs.promises.mkdir(stubOriginalsDir, { recursive: true });
+  for (const fileName of fileNames) {
+    const sourcePath = path.join(migrationsDir, fileName);
+    const originalPath = path.join(stubOriginalsDir, fileName);
+    await fs.promises.rename(sourcePath, originalPath);
+    await fs.promises.writeFile(sourcePath, buildDataMigrationStub(fileName, cutoffTimestampRaw), 'utf8');
+  }
+}
+
+async function restoreStubbedMigrations(fileNames: string[], stubOriginalsDir: string, migrationsDir: string) {
+  if (fileNames.length === 0) return;
+
+  for (const fileName of fileNames) {
+    const liveStubPath = path.join(migrationsDir, fileName);
+    const originalPath = path.join(stubOriginalsDir, fileName);
+    await fs.promises.rm(liveStubPath, { force: true });
+    await fs.promises.rename(originalPath, liveStubPath);
   }
 }
 
@@ -244,14 +170,16 @@ async function runPostSeedCommand(
   cutoffTimestampRaw: string | undefined,
   options: PostSeedCommandOptions = {},
 ) {
-  const resolvedCutoff = await resolveCutoffTimestamp(cutoffTimestampRaw);
+  const resolvedCutoff = await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env });
   const resolvedCutoffRaw = resolvedCutoff.value;
   const cutoff = parseCutoffTimestamp(resolvedCutoffRaw);
 
   const migrationsDir = path.resolve(process.cwd(), options.migrationsDir ?? DEFAULT_MIGRATIONS_DIR);
   const tempRootDir = path.resolve(process.cwd(), options.tempDir ?? DEFAULT_TEMP_DIR);
   const activeTempDir = path.join(tempRootDir, `deferred_${Date.now()}_${process.pid}`);
+  const activeStubDir = path.join(tempRootDir, `stubbed_${Date.now()}_${process.pid}`);
   const usePsql = options.psql === true;
+  const dataMigrationMarker = resolveDataMigrationMarker();
 
   await ensureDirectoryExists(migrationsDir);
 
@@ -270,29 +198,53 @@ async function runPostSeedCommand(
   console.log(info(`cutoff = ${resolvedCutoffRaw}${cutoffSourceSuffix}`));
   console.log(info(`migrationsDir = ${migrationsDir}`));
   console.log(info(`tempDir = ${activeTempDir}`));
+  console.log(info(`dataMarker = ${dataMigrationMarker}`));
   console.log(info(`applyMode = ${usePsql ? 'psql' : 'supabase migration up'}`));
   console.log('');
 
   const allMigrations = await listMigrations(migrationsDir);
-  const deferred = allMigrations.filter((migration) => migration.timestamp > cutoff);
-  const deferredNames = deferred.map((migration) => migration.fileName);
+  const classified = await classifyMigrations(migrationsDir, allMigrations, dataMigrationMarker);
+  const replayDeferred = classified.filter((migration) => migration.timestamp > cutoff);
+  const replayDeferredNames = replayDeferred.map((migration) => migration.fileName);
+  const historicalDataMigrations = classified.filter(
+    (migration) => migration.timestamp <= cutoff && migration.isDataMigration,
+  );
+  const historicalDataMigrationNames = historicalDataMigrations.map((migration) => migration.fileName);
 
-  if (deferredNames.length > 0) {
-    console.log(info(`Deferring ${deferredNames.length} migrations after ${resolvedCutoffRaw}:`));
-    for (const fileName of deferredNames) {
+  if (replayDeferredNames.length > 0) {
+    console.log(info(`Deferring ${replayDeferredNames.length} migrations after ${resolvedCutoffRaw}:`));
+    for (const fileName of replayDeferredNames) {
       console.log(info(`  ${fileName}`));
     }
   } else {
     console.log(info(`No migrations found after ${resolvedCutoffRaw}.`));
   }
+  if (historicalDataMigrationNames.length > 0) {
+    console.log(
+      info(`Stubbing ${historicalDataMigrationNames.length} historical data migrations at/before ${resolvedCutoffRaw}:`),
+    );
+    for (const fileName of historicalDataMigrationNames) {
+      console.log(info(`  ${fileName}`));
+    }
+  }
   console.log('');
 
   let baseCommandError: unknown = null;
-  let restoreError: unknown = null;
+  let restoreErrors: string[] = [];
+  let movedReplayDeferred = false;
+  let stubbedHistorical = false;
 
-  if (deferredNames.length > 0) {
-    await moveFiles(deferredNames, migrationsDir, activeTempDir);
-    console.log(ok(`Moved ${deferredNames.length} migrations to ${activeTempDir}`));
+  if (replayDeferredNames.length > 0) {
+    await moveFiles(replayDeferredNames, migrationsDir, activeTempDir);
+    movedReplayDeferred = true;
+    console.log(ok(`Moved ${replayDeferredNames.length} migrations to ${activeTempDir}`));
+    console.log('');
+  }
+
+  if (historicalDataMigrationNames.length > 0) {
+    await stubHistoricalDataMigrations(historicalDataMigrationNames, migrationsDir, activeStubDir, resolvedCutoffRaw);
+    stubbedHistorical = true;
+    console.log(ok(`Stubbed ${historicalDataMigrationNames.length} historical data migrations in-place`));
     console.log('');
   }
 
@@ -303,38 +255,53 @@ async function runPostSeedCommand(
   } catch (error) {
     baseCommandError = error;
   } finally {
-    if (deferredNames.length > 0) {
+    if (movedReplayDeferred) {
       try {
-        await moveFiles(deferredNames, activeTempDir, migrationsDir);
-        await removeIfEmpty(activeTempDir);
-        await removeIfEmpty(tempRootDir);
+        await moveFiles(replayDeferredNames, activeTempDir, migrationsDir);
         console.log(ok(`Restored deferred migrations to ${migrationsDir}`));
       } catch (error) {
-        restoreError = error;
+        restoreErrors.push(
+          `Failed restoring deferred migrations: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
+
+    if (stubbedHistorical) {
+      try {
+        await restoreStubbedMigrations(historicalDataMigrationNames, activeStubDir, migrationsDir);
+        console.log(ok(`Restored original SQL for ${historicalDataMigrationNames.length} historical data migrations`));
+      } catch (error) {
+        restoreErrors.push(
+          `Failed restoring stubbed historical migrations: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    await removeIfEmpty(activeTempDir);
+    await removeIfEmpty(activeStubDir);
+    await removeIfEmpty(tempRootDir);
   }
 
-  if (restoreError) {
-    throw new Error(
-      `Failed while restoring deferred migrations: ${
-        restoreError instanceof Error ? restoreError.message : String(restoreError)
-      }`,
-    );
+  if (restoreErrors.length > 0) {
+    throw new Error(`Failed while restoring migrations:\n${restoreErrors.join('\n')}`);
   }
 
   if (baseCommandError) {
     throw baseCommandError;
   }
 
-  if (deferredNames.length === 0) {
-    console.log(ok('Done. No post-seed migrations to apply.'));
+  if (replayDeferredNames.length === 0) {
+    if (historicalDataMigrationNames.length > 0) {
+      console.log(ok(`Done. No post-seed migrations to apply. Historical data migrations skipped: ${historicalDataMigrationNames.length}.`));
+    } else {
+      console.log(ok('Done. No post-seed migrations to apply.'));
+    }
     return;
   }
 
   if (usePsql) {
     console.log(info('Applying deferred migrations via psql...'));
-    for (const fileName of deferredNames) {
+    for (const fileName of replayDeferredNames) {
       const migrationPath = path.join(migrationsDir, fileName);
       console.log(info(`  ${fileName}`));
       await runCommand(
@@ -348,7 +315,7 @@ async function runPostSeedCommand(
     await runCommand('supabase', ['migration', 'up']);
   }
 
-  console.log(ok(`Done. Applied ${deferredNames.length} post-seed migrations.`));
+  console.log(ok(`Done. Applied ${replayDeferredNames.length} post-seed migrations.`));
 }
 
 export async function runDbResetCommand(

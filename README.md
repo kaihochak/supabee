@@ -204,6 +204,8 @@ For historical data migrations at or before cutoff, `supabee` executes a tempora
 Classification is automatic by SQL patterns (`INSERT/UPDATE/DELETE/...` vs `CREATE/ALTER/DROP ...`), and optional markers can override classification.
 Mixed schema+DML migrations are blocked when they are after cutoff and must be split.
 Mixed migrations at/before cutoff run in compatibility mode by default (warning only). Use `--strict-mixed` to fail on any mixed migration.
+When post-cutoff mixed files are detected, `supabee` can prompt to auto-split them inline during `db reset`/`start`.
+Auto-split is blocked if a mixed migration version is already applied on the linked remote project.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest migration version that exists in both local and remote (works even when remote has gaps).
 When linked lookup succeeds, `supabee` stores the value in `supabee.config.json` as `postSeedCutoff` (or `postSeedCutoffByEnv.<env>` when `--env` is set).
@@ -227,6 +229,7 @@ supabee db reset --strict-mixed
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase start`, restores deferred migrations, then reapplies them.
 For historical data-migration files, `supabee` temporarily swaps the file body to a no-op during the run, then restores the original SQL file content.
+When post-cutoff mixed files are detected, `supabee` can prompt to auto-split them inline before continuing.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` the same way as `db reset`.
 

@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 import { runCommand } from '../lib/subprocess.js';
 import { sectionWithNote, title, info, ok } from '../lib/ui.js';
 import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cutoff.js';
 import { classifyMigrations, resolveMarkers } from '../lib/migration-classifier.js';
+import { autoSplitMixedMigrations } from '../lib/mixed-migration-splitter.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
@@ -88,6 +91,25 @@ function modeCommandLabel(mode: PostSeedMode): string {
   return mode === 'reset' ? 'supabase db reset' : 'supabase start';
 }
 
+async function promptForSplit(mixedFileNames: string[]): Promise<boolean> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return false;
+  }
+
+  console.log(info('Post-cutoff mixed migrations detected:'));
+  for (const fileName of mixedFileNames) {
+    console.log(info(`  ${fileName}`));
+  }
+  const rl = readline.createInterface({ input, output });
+  try {
+    const answer = await rl.question('Split these mixed migrations now and continue? [y/N] ');
+    const normalized = answer.trim().toLowerCase();
+    return normalized === 'y' || normalized === 'yes';
+  } finally {
+    rl.close();
+  }
+}
+
 async function runPostSeedCommand(
   mode: PostSeedMode,
   cutoffTimestampRaw: string | undefined,
@@ -128,10 +150,10 @@ async function runPostSeedCommand(
   console.log(info(`applyMode = ${usePsql ? 'psql' : 'supabase migration up'}`));
   console.log('');
 
-  const classified = await classifyMigrations({ migrationsDir });
-  const mixedFiles = classified.filter((migration) => migration.classification === 'mixed');
-  const mixedBeforeOrAtCutoff = mixedFiles.filter((migration) => migration.timestamp <= cutoff);
-  const mixedAfterCutoff = mixedFiles.filter((migration) => migration.timestamp > cutoff);
+  let classified = await classifyMigrations({ migrationsDir });
+  let mixedFiles = classified.filter((migration) => migration.classification === 'mixed');
+  let mixedBeforeOrAtCutoff = mixedFiles.filter((migration) => migration.timestamp <= cutoff);
+  let mixedAfterCutoff = mixedFiles.filter((migration) => migration.timestamp > cutoff);
   if (strictMixed && mixedFiles.length > 0) {
     const mixedList = mixedFiles.map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`).join('\n');
     throw new Error(
@@ -140,13 +162,38 @@ async function runPostSeedCommand(
     );
   }
   if (mixedAfterCutoff.length > 0) {
-    const mixedList = mixedAfterCutoff
-      .map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`)
-      .join('\n');
-    throw new Error(
-      `Mixed schema+DML migrations detected after cutoff ${resolvedCutoffRaw}.\n` +
-        `Split each mixed migration into separate schema-only and data-only files:\n${mixedList}`,
-    );
+    const splitConfirmed = await promptForSplit(mixedAfterCutoff.map((migration) => migration.fileName));
+    if (!splitConfirmed) {
+      const mixedList = mixedAfterCutoff
+        .map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`)
+        .join('\n');
+      throw new Error(
+        `Mixed schema+DML migrations detected after cutoff ${resolvedCutoffRaw}.\n` +
+          `Split each mixed migration into separate schema-only and data-only files:\n${mixedList}`,
+      );
+    }
+
+    await autoSplitMixedMigrations({
+      fileNames: mixedAfterCutoff.map((migration) => migration.fileName),
+      migrationsDir,
+      tempRootDir,
+    });
+
+    classified = await classifyMigrations({ migrationsDir });
+    mixedFiles = classified.filter((migration) => migration.classification === 'mixed');
+    mixedBeforeOrAtCutoff = mixedFiles.filter((migration) => migration.timestamp <= cutoff);
+    mixedAfterCutoff = mixedFiles.filter((migration) => migration.timestamp > cutoff);
+    if (mixedAfterCutoff.length > 0) {
+      const mixedList = mixedAfterCutoff
+        .map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`)
+        .join('\n');
+      throw new Error(
+        `Mixed schema+DML migrations still remain after auto-split.\n` +
+          `Please split manually:\n${mixedList}`,
+      );
+    }
+    console.log(ok('Auto-split completed for post-cutoff mixed migrations.'));
+    console.log('');
   }
   if (mixedBeforeOrAtCutoff.length > 0) {
     console.log(

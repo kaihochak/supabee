@@ -32,7 +32,7 @@ const DEFAULT_SCHEMA_MARKER = 'supabee:schema-migration';
 
 const DDL_PATTERN =
   /\b(create|alter|drop)\s+(table|type|schema|extension|index|view|materialized|function|policy|trigger|publication|subscription)\b/i;
-const DML_PATTERN = /\b(insert\s+into|update\s+\S+|delete\s+from|merge\s+into|truncate\s+table)\b/i;
+const DML_PATTERN = /\b(insert\s+into|delete\s+from|merge\s+into|truncate\s+table)\b/i;
 const DDL_PATTERNS: Array<{ pattern: string; regex: RegExp }> = [
   { pattern: 'CREATE TABLE', regex: /\bcreate\s+table\b/gi },
   { pattern: 'ALTER TABLE', regex: /\balter\s+table\b/gi },
@@ -48,10 +48,16 @@ const DDL_PATTERNS: Array<{ pattern: string; regex: RegExp }> = [
 ];
 const DML_PATTERNS: Array<{ pattern: string; regex: RegExp }> = [
   { pattern: 'INSERT INTO', regex: /\binsert\s+into\b/gi },
-  { pattern: 'UPDATE', regex: /\bupdate\s+\S+/gi },
   { pattern: 'DELETE FROM', regex: /\bdelete\s+from\b/gi },
   { pattern: 'MERGE INTO', regex: /\bmerge\s+into\b/gi },
   { pattern: 'TRUNCATE TABLE', regex: /\btruncate\s+table\b/gi },
+];
+
+const NON_DML_UPDATE_CONTEXT_PATTERNS: RegExp[] = [
+  /\bfor\s+update\b/i,
+  /\bon\s+update\b/i,
+  /\bbefore\s+update\s+on\b/i,
+  /\bafter\s+update\s+on\b/i,
 ];
 
 function resolveDataMarker(): string {
@@ -98,14 +104,44 @@ function collectPatternMatches(
     item.regex.lastIndex = 0;
     let match: RegExpExecArray | null = item.regex.exec(text);
     while (match) {
+      const absoluteIndex = match.index;
+      const snippet = lineSnippetAtIndex(text, absoluteIndex);
       matches.push({
         pattern: item.pattern,
-        line: lineNumberAtIndex(text, match.index),
-        snippet: lineSnippetAtIndex(text, match.index),
+        line: lineNumberAtIndex(text, absoluteIndex),
+        snippet,
       });
       if (matches.length >= limit) return matches;
       match = item.regex.exec(text);
     }
+  }
+
+  return matches;
+}
+
+function collectUpdateMatches(text: string, limit = 3): Array<{ pattern: string; line: number; snippet: string }> {
+  const matches: Array<{ pattern: string; line: number; snippet: string }> = [];
+  const regex = /\bupdate\b\s+\S+/gi;
+  let match: RegExpExecArray | null = regex.exec(text);
+
+  while (match) {
+    const index = match.index;
+    let probe = index - 1;
+    while (probe >= 0 && (text[probe] === ' ' || text[probe] === '\t' || text[probe] === '\r')) {
+      probe -= 1;
+    }
+    const delimiterOk = probe < 0 || text[probe] === ';' || text[probe] === '\n';
+    const snippet = lineSnippetAtIndex(text, index);
+    const blocked = NON_DML_UPDATE_CONTEXT_PATTERNS.some((pattern) => pattern.test(snippet));
+    if (delimiterOk && !blocked) {
+      matches.push({
+        pattern: 'UPDATE',
+        line: lineNumberAtIndex(text, index),
+        snippet,
+      });
+      if (matches.length >= limit) return matches;
+    }
+    match = regex.exec(text);
   }
 
   return matches;
@@ -260,9 +296,12 @@ function classifySql(sql: string): {
   const hasSchema = hasMarker(sql, schemaMarker);
   const normalized = stripCommentsAndStrings(sql);
   const hasDdl = DDL_PATTERN.test(normalized);
-  const hasDml = DML_PATTERN.test(normalized);
   const ddlMatches = collectPatternMatches(normalized, DDL_PATTERNS);
-  const dmlMatches = collectPatternMatches(normalized, DML_PATTERNS);
+  const dmlMatches = [...collectPatternMatches(normalized, DML_PATTERNS), ...collectUpdateMatches(normalized)].slice(
+    0,
+    3,
+  );
+  const hasDml = DML_PATTERN.test(normalized) || dmlMatches.length > 0;
   const evidence = { markerMatches, ddlMatches, dmlMatches };
 
   if (hasData && hasSchema) {

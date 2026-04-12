@@ -7,6 +7,7 @@ import { runInitCommand } from './commands/init.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runDbResetCommand, runStartCommand } from './commands/db-reset.js';
 import { runCutoffDetectCommand } from './commands/cutoff.js';
+import { runMigrationAuditCommand, runMigrationMarkCommand, runMigrationUnmarkCommand } from './commands/migration.js';
 import { runCommand } from './lib/subprocess.js';
 import { error as errText, info, warn } from './lib/ui.js';
 
@@ -31,8 +32,9 @@ function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOp
   return args;
 }
 
-const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'cutoff', 'help']);
+const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'cutoff', 'migration', 'help']);
 const KNOWN_DB_SUBCOMMANDS = new Set(['reset', 'help']);
+const KNOWN_MIGRATION_SUBCOMMANDS = new Set(['audit', 'mark', 'unmark', 'help']);
 
 function firstNonOptionToken(args: string[]): { token: string; index: number } | null {
   for (let index = 0; index < args.length; index += 1) {
@@ -81,16 +83,29 @@ async function maybePassthroughToSupabase(args: string[]): Promise<boolean> {
   if (!topLevel) return false;
 
   if (KNOWN_TOP_LEVEL_COMMANDS.has(topLevel.token)) {
-    if (topLevel.token !== 'db') return false;
+    if (topLevel.token === 'db') {
+      const dbSubcommand = firstNonOptionToken(args.slice(topLevel.index + 1));
+      if (!dbSubcommand || KNOWN_DB_SUBCOMMANDS.has(dbSubcommand.token)) {
+        return false;
+      }
 
-    const dbSubcommand = firstNonOptionToken(args.slice(topLevel.index + 1));
-    if (!dbSubcommand || KNOWN_DB_SUBCOMMANDS.has(dbSubcommand.token)) {
-      return false;
+      console.log(info(`Forwarding to Supabase CLI: supabase ${args.join(' ')}`));
+      await runCommand('supabase', args);
+      return true;
     }
 
-    console.log(info(`Forwarding to Supabase CLI: supabase ${args.join(' ')}`));
-    await runCommand('supabase', args);
-    return true;
+    if (topLevel.token === 'migration') {
+      const migrationSubcommand = firstNonOptionToken(args.slice(topLevel.index + 1));
+      if (!migrationSubcommand || KNOWN_MIGRATION_SUBCOMMANDS.has(migrationSubcommand.token)) {
+        return false;
+      }
+
+      console.log(info(`Forwarding to Supabase CLI: supabase ${args.join(' ')}`));
+      await runCommand('supabase', args);
+      return true;
+    }
+
+    return false;
   }
 
   console.log(info(`Forwarding to Supabase CLI: supabase ${args.join(' ')}`));
@@ -203,6 +218,32 @@ cutoffCommand
   .action((cutoffTimestamp: string | undefined, options: { env?: string; json?: boolean } = {}) =>
     runCutoffDetectCommand(cutoffTimestamp, options),
   );
+
+const migrationCommand = program.command('migration').description('Migration classification helpers');
+
+migrationCommand
+  .command('audit')
+  .description('Classify migrations as data/schema/mixed/unknown and show suggested marker actions')
+  .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
+  .action((options: { migrationsDir?: string } = {}) => runMigrationAuditCommand(options));
+
+migrationCommand
+  .command('mark')
+  .description('Add marker comments to classified migration files (interactive by default)')
+  .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
+  .option('--dry-run', 'Preview marker updates without writing files')
+  .option('--yes', 'Apply all suggested marker updates without interactive prompts')
+  .action((options: { migrationsDir?: string; dryRun?: boolean; yes?: boolean } = {}) =>
+    runMigrationMarkCommand(options),
+  );
+
+migrationCommand
+  .command('unmark')
+  .description('Remove marker comments from migration files (interactive by default)')
+  .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
+  .option('--dry-run', 'Preview marker removals without writing files')
+  .option('--yes', 'Remove all found marker updates without interactive prompts')
+  .action((options: { migrationsDir?: string; dryRun?: boolean; yes?: boolean } = {}) => runMigrationUnmarkCommand(options));
 
 const dbCommand = program.command('db').description('Database orchestration commands');
 

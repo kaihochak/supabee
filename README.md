@@ -200,31 +200,9 @@ supabee sync data --force
 ### `db reset`
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase db reset`, restores deferred migrations, then reapplies them.
-For historical data migrations marked `-- supabee:data-migration` at or before cutoff, `supabee` executes a temporary no-op stub during reset, then restores original SQL.
-Add the marker as a SQL comment at the top of the migration file (for example `supabase/migrations/20260401120000_backfill_domains.sql`).
-
-Example migration file:
-
-```sql
--- supabee:data-migration
-
-INSERT INTO domains (id, name, slug, description, created_at, updated_at, status_id)
-SELECT
-  gen_random_uuid(),
-  v.name,
-  v.slug,
-  v.description,
-  now(),
-  now(),
-  s.id
-FROM (
-  VALUES
-    ('Arts and Design', 'arts-and-design', 'Visual arts, performing arts, design, and architecture'),
-    ('Humanities', 'humanities', 'History, philosophy, literature, cultural studies, and religious studies')
-) AS v(name, slug, description)
-JOIN statuses s ON s.name = 'verified'
-WHERE NOT EXISTS (SELECT 1 FROM domains d WHERE d.slug = v.slug);
-```
+For historical data migrations at or before cutoff, `supabee` executes a temporary no-op stub during reset, then restores original SQL.
+Classification is automatic by SQL patterns (`INSERT/UPDATE/DELETE/...` vs `CREATE/ALTER/DROP ...`), and optional markers can override classification.
+Mixed schema+DML migrations are blocked and must be split.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest migration version that exists in both local and remote (works even when remote has gaps).
 When linked lookup succeeds, `supabee` stores the value in `supabee.config.json` as `postSeedCutoff` (or `postSeedCutoffByEnv.<env>` when `--env` is set).
@@ -244,7 +222,7 @@ supabee db reset 20260309180959 --psql
 ### `start`
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase start`, restores deferred migrations, then reapplies them.
-For marked historical data-migration files, `supabee` temporarily swaps the file body to a no-op during the run, then restores the original SQL file content.
+For historical data-migration files, `supabee` temporarily swaps the file body to a no-op during the run, then restores the original SQL file content.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` the same way as `db reset`.
 
@@ -268,6 +246,45 @@ Resolves cutoff from argument, linked migration alignment, or config fallback.
 supabee cutoff detect
 supabee cutoff detect --env staging
 supabee cutoff detect 20260309180959 --json
+```
+
+### `migration audit`
+
+Classifies migration files as `data`, `schema`, `mixed`, or `unknown`, and shows recommended marker actions.
+
+```bash
+supabee migration audit
+supabee migration audit --migrations-dir supabase/migrations
+```
+
+### `migration mark`
+
+Adds suggested marker comments by default with interactive confirmation prompts.
+
+```bash
+# default: interactive apply
+supabee migration mark
+
+# preview only (no writes)
+supabee migration mark --dry-run
+
+# non-interactive apply (CI/scripts)
+supabee migration mark --yes
+```
+
+### `migration unmark`
+
+Removes marker comments with the same interaction model as `mark`.
+
+```bash
+# default: interactive remove
+supabee migration unmark
+
+# preview only (no writes)
+supabee migration unmark --dry-run
+
+# non-interactive remove
+supabee migration unmark --yes
 ```
 
 ### Supabase passthrough
@@ -313,6 +330,7 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
     "production": ""
   },
   "dataMigrationMarker": "supabee:data-migration",
+  "schemaMigrationMarker": "supabee:schema-migration",
   "schema": {
     "input": "supabase/schemas/prod-schemas.sql",
     "output": "supabase/schemas/split",
@@ -358,7 +376,8 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
 | `init.seedSqlPaths` | Paths written to `supabase/config.toml` `[db.seed].sql_paths` |
 | `postSeedCutoff` | Fallback cutoff timestamp used by `db reset`/`start` when linked lookup is unavailable (for example in CI) |
 | `postSeedCutoffByEnv` | Optional per-environment fallback cutoff map (for example `staging`, `production`) |
-| `dataMigrationMarker` | Marker used to classify data-only migrations (default: `supabee:data-migration`) |
+| `dataMigrationMarker` | Optional override marker for data migrations (default: `supabee:data-migration`) |
+| `schemaMigrationMarker` | Optional override marker for schema migrations (default: `supabee:schema-migration`) |
 
 ### Table-specific rules
 
@@ -435,9 +454,10 @@ Recommended approach:
 
 1. Keep schema structure changes in migrations.
 2. Keep baseline/reference seed rows in seed files.
-3. Put data mutations in dedicated migration files and add `-- supabee:data-migration` at the top of that SQL file.
-4. Keep marked files free of schema DDL (`CREATE`/`ALTER`/`DROP ...`) so they can be safely stubbed when historical.
-5. Make migration-time data mutations idempotent (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, guarded updates).
+3. Put data mutations in dedicated migration files; `supabee` auto-detects these by SQL patterns.
+4. Use `supabee migration audit` to review classification and `supabee migration mark` if you want explicit marker comments in files.
+5. Keep data migrations free of schema DDL (`CREATE`/`ALTER`/`DROP ...`); mixed files are blocked and must be split.
+6. Make migration-time data mutations idempotent (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, guarded updates).
 
 ## Help
 
@@ -453,6 +473,9 @@ supabee start --help
 supabee db --help
 supabee db reset --help
 supabee cutoff detect --help
+supabee migration audit --help
+supabee migration mark --help
+supabee migration unmark --help
 ```
 
 Legacy CLI alias is still available: `supabase-splitter --help`.

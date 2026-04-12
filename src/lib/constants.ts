@@ -12,6 +12,7 @@ export type ToolConfig = {
   postSeedCutoff?: string;
   postSeedCutoffByEnv?: Record<string, string>;
   dataMigrationMarker?: string;
+  schemaMigrationMarker?: string;
   schema?: {
     input?: string;
     output?: string;

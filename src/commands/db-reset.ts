@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { runCommand } from '../lib/subprocess.js';
-import { readToolConfig } from '../lib/config.js';
 import { sectionWithNote, title, info, ok } from '../lib/ui.js';
 import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cutoff.js';
+import { classifyMigrations, resolveMarkers } from '../lib/migration-classifier.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
@@ -12,67 +12,11 @@ export type PostSeedCommandOptions = {
   env?: string;
 };
 
-type MigrationFile = {
-  fileName: string;
-  timestamp: number;
-};
 type PostSeedMode = 'reset' | 'start';
 
 const DEFAULT_MIGRATIONS_DIR = 'supabase/migrations';
 const DEFAULT_TEMP_DIR = 'supabase/.tmp-migrations';
-const DEFAULT_DATA_MIGRATION_MARKER = 'supabee:data-migration';
 const DATA_MIGRATION_STUB_HEADER = '-- supabee:auto-stub:data-migration';
-const SCHEMA_DDL_PATTERN =
-  /\b(create|alter|drop)\s+(table|type|schema|extension|index|view|materialized|function|policy|trigger|publication|subscription)\b/i;
-
-function resolveDataMigrationMarker(): string {
-  const configured = readToolConfig().dataMigrationMarker;
-  if (typeof configured === 'string' && configured.trim()) return configured.trim();
-  return DEFAULT_DATA_MIGRATION_MARKER;
-}
-
-function hasDataMigrationMarker(sql: string, marker: string): boolean {
-  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`^\\s*--\\s*${escaped}(?:\\s|$)`, 'im');
-  return regex.test(sql);
-}
-
-function stripCommentOnlyLines(sql: string): string {
-  return sql
-    .split('\n')
-    .filter((line) => !line.trim().startsWith('--'))
-    .join('\n');
-}
-
-type ClassifiedMigration = MigrationFile & {
-  isDataMigration: boolean;
-};
-
-async function classifyMigrations(
-  migrationsDir: string,
-  migrations: MigrationFile[],
-  marker: string,
-): Promise<ClassifiedMigration[]> {
-  const classified: ClassifiedMigration[] = [];
-
-  for (const migration of migrations) {
-    const filePath = path.join(migrationsDir, migration.fileName);
-    const sql = await fs.promises.readFile(filePath, 'utf8');
-    const isDataMigration = hasDataMigrationMarker(sql, marker);
-    if (isDataMigration) {
-      const sqlWithoutCommentLines = stripCommentOnlyLines(sql);
-      if (SCHEMA_DDL_PATTERN.test(sqlWithoutCommentLines)) {
-        throw new Error(
-          `Migration "${migration.fileName}" is marked "${marker}" but contains schema DDL. Split schema changes into a separate migration file.`,
-        );
-      }
-    }
-
-    classified.push({ ...migration, isDataMigration });
-  }
-
-  return classified;
-}
 
 function buildDataMigrationStub(fileName: string, cutoffTimestampRaw: string): string {
   return `${DATA_MIGRATION_STUB_HEADER}
@@ -108,28 +52,6 @@ async function restoreStubbedMigrations(fileNames: string[], stubOriginalsDir: s
     await fs.promises.rm(liveStubPath, { force: true });
     await fs.promises.rename(originalPath, liveStubPath);
   }
-}
-
-async function listMigrations(migrationsDir: string): Promise<MigrationFile[]> {
-  const entries = await fs.promises.readdir(migrationsDir, { withFileTypes: true });
-  const files: MigrationFile[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.sql')) continue;
-    const timestampPart = entry.name.split('_')[0];
-    if (!/^\d+$/.test(timestampPart)) continue;
-    files.push({
-      fileName: entry.name,
-      timestamp: Number(timestampPart),
-    });
-  }
-
-  files.sort((a, b) => {
-    if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-    return a.fileName.localeCompare(b.fileName);
-  });
-
-  return files;
 }
 
 async function moveFiles(fileNames: string[], fromDir: string, toDir: string) {
@@ -179,7 +101,7 @@ async function runPostSeedCommand(
   const activeTempDir = path.join(tempRootDir, `deferred_${Date.now()}_${process.pid}`);
   const activeStubDir = path.join(tempRootDir, `stubbed_${Date.now()}_${process.pid}`);
   const usePsql = options.psql === true;
-  const dataMigrationMarker = resolveDataMigrationMarker();
+  const markers = resolveMarkers();
 
   await ensureDirectoryExists(migrationsDir);
 
@@ -198,16 +120,38 @@ async function runPostSeedCommand(
   console.log(info(`cutoff = ${resolvedCutoffRaw}${cutoffSourceSuffix}`));
   console.log(info(`migrationsDir = ${migrationsDir}`));
   console.log(info(`tempDir = ${activeTempDir}`));
-  console.log(info(`dataMarker = ${dataMigrationMarker}`));
+  console.log(info(`dataMarker = ${markers.dataMarker}`));
+  console.log(info(`schemaMarker = ${markers.schemaMarker}`));
   console.log(info(`applyMode = ${usePsql ? 'psql' : 'supabase migration up'}`));
   console.log('');
 
-  const allMigrations = await listMigrations(migrationsDir);
-  const classified = await classifyMigrations(migrationsDir, allMigrations, dataMigrationMarker);
+  const classified = await classifyMigrations({ migrationsDir });
+  const mixedFiles = classified.filter((migration) => migration.classification === 'mixed');
+  if (mixedFiles.length > 0) {
+    const mixedList = mixedFiles.map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`).join('\n');
+    throw new Error(
+      `Mixed schema+DML migrations are not supported for reset/start orchestration.\n` +
+        `Split each mixed migration into separate schema-only and data-only files:\n${mixedList}`,
+    );
+  }
+
+  const unknownFiles = classified.filter((migration) => migration.classification === 'unknown');
+  if (unknownFiles.length > 0) {
+    console.log(
+      info(
+        `Detected ${unknownFiles.length} unknown migration(s); treating them as schema for reset/start handling unless explicitly marked.`,
+      ),
+    );
+    for (const migration of unknownFiles) {
+      console.log(info(`  ${migration.fileName}`));
+    }
+    console.log('');
+  }
+
   const replayDeferred = classified.filter((migration) => migration.timestamp > cutoff);
   const replayDeferredNames = replayDeferred.map((migration) => migration.fileName);
   const historicalDataMigrations = classified.filter(
-    (migration) => migration.timestamp <= cutoff && migration.isDataMigration,
+    (migration) => migration.timestamp <= cutoff && migration.classification === 'data',
   );
   const historicalDataMigrationNames = historicalDataMigrations.map((migration) => migration.fileName);
 

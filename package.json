@@ -41,13 +41,14 @@
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node dist/index.js --help",
-    "pack:check": "npm run build && npm_config_cache=.npm-cache npm pack --dry-run"
+    "pack:check": "npm run build && cross-env npm_config_cache=.npm-cache npm pack --dry-run"
   },
   "dependencies": {
     "commander": "^12.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.15",
+    "cross-env": "^7.0.3",
     "typescript": "^5.9.3"
   }
 }

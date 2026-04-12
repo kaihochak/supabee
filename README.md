@@ -182,6 +182,7 @@ Dumps schema from the linked Supabase project, then runs full schema processing:
 supabee sync schema
 supabee sync schema --input supabase/schemas/prod-schemas.sql --output supabase/schemas/split
 supabee sync schema --backup
+supabee sync schema --force
 ```
 
 ### `sync data`
@@ -193,21 +194,24 @@ supabee sync data
 supabee sync data --input supabase/seeds/prod-data.sql --output supabase/seeds/split
 supabee sync data --backup
 supabee sync data --no-backup
+supabee sync data --force
 ```
 
 ### `db reset`
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase db reset`, restores deferred migrations, then reapplies them.
+For historical data migrations marked `-- supabee:data-migration` at or before cutoff, `supabee` executes a temporary no-op stub during reset, then restores original SQL.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest migration version that exists in both local and remote (works even when remote has gaps).
-When linked lookup succeeds, `supabee` stores the value in `supabee.config.json` as `postSeedCutoff`.
-If linked lookup fails (for example in CI), it falls back to `postSeedCutoff` from config.
+When linked lookup succeeds, `supabee` stores the value in `supabee.config.json` as `postSeedCutoff` (or `postSeedCutoffByEnv.<env>` when `--env` is set).
+If linked lookup fails (for example in CI), it falls back to `postSeedCutoffByEnv.<env>` when `--env` is set, otherwise `postSeedCutoff`.
 If not linked, `supabee` runs `supabase link` and retries once.
 
 ```bash
 # default re-apply mode: supabase migration up
 supabee db reset 20260309180959
 supabee db reset
+supabee db reset --env staging
 
 # optional re-apply mode: psql
 supabee db reset 20260309180959 --psql
@@ -216,6 +220,7 @@ supabee db reset 20260309180959 --psql
 ### `start`
 
 Defers post-seed migrations newer than the cutoff timestamp, runs `supabase start`, restores deferred migrations, then reapplies them.
+Historical `-- supabee:data-migration` files at or before cutoff are stubbed during the run, then restored.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` the same way as `db reset`.
 
@@ -228,6 +233,17 @@ supabee start
 
 # optional re-apply mode: psql
 supabee start --psql
+supabee start --env production
+```
+
+### `cutoff detect`
+
+Resolves cutoff from argument, linked migration alignment, or config fallback.
+
+```bash
+supabee cutoff detect
+supabee cutoff detect --env staging
+supabee cutoff detect 20260309180959 --json
 ```
 
 ### Supabase passthrough
@@ -268,6 +284,11 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
 ```json
 {
   "postSeedCutoff": "",
+  "postSeedCutoffByEnv": {
+    "staging": "",
+    "production": ""
+  },
+  "dataMigrationMarker": "supabee:data-migration",
   "schema": {
     "input": "supabase/schemas/prod-schemas.sql",
     "output": "supabase/schemas/split",
@@ -312,6 +333,8 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
 | `data.ignoreInReconstruct` | Files to skip during reconstruction |
 | `init.seedSqlPaths` | Paths written to `supabase/config.toml` `[db.seed].sql_paths` |
 | `postSeedCutoff` | Fallback cutoff timestamp used by `db reset`/`start` when linked lookup is unavailable (for example in CI) |
+| `postSeedCutoffByEnv` | Optional per-environment fallback cutoff map (for example `staging`, `production`) |
+| `dataMigrationMarker` | Marker used to classify data-only migrations (default: `supabee:data-migration`) |
 
 ### Table-specific rules
 
@@ -342,6 +365,7 @@ Override limits or skip specific tables:
 - `--output`: output path (split dir for `split`, reconstructed file for `reconstruct`/`validate`)
 - `--backup`: create backup of dirty split directory before running split
 - `--no-backup`: disable backup of dirty split directory before running split
+- `--force` (sync commands only): skip linked migration alignment preflight
 
 For `validate`, you can pass reconstructed path either as `--output <path>` or as the second positional argument.
 
@@ -350,12 +374,19 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
 - `--psql`: apply deferred migrations via `psql` instead of `supabase migration up`
 - `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
 - `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
+- `--env <name>`: use `postSeedCutoffByEnv.<name>` as fallback cutoff source
 
 `start` supports:
 
 - `--psql`: apply deferred migrations via `psql` instead of `supabase migration up`
 - `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
 - `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
+- `--env <name>`: use `postSeedCutoffByEnv.<name>` as fallback cutoff source
+
+`cutoff detect` supports:
+
+- `--env <name>`: include environment fallback lookup
+- `--json`: print machine-readable output
 
 ## Deep dive: why `supabee db reset` and `supabee start`
 
@@ -380,8 +411,9 @@ Recommended approach:
 
 1. Keep schema structure changes in migrations.
 2. Keep baseline/reference seed rows in seed files.
-3. Make migration-time data mutations idempotent (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, guarded updates).
-4. Avoid duplicating the exact same inserts/enum mutations in both seeds and migrations unless both paths are explicitly idempotent.
+3. Put data mutations in dedicated migration files marked `-- supabee:data-migration`.
+4. Keep marked files free of schema DDL (`CREATE`/`ALTER`/`DROP ...`) so they can be safely stubbed when historical.
+5. Make migration-time data mutations idempotent (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, guarded updates).
 
 ## Help
 
@@ -396,6 +428,7 @@ supabee data --help
 supabee start --help
 supabee db --help
 supabee db reset --help
+supabee cutoff detect --help
 ```
 
 Legacy CLI alias is still available: `supabase-splitter --help`.

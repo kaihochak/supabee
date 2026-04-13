@@ -91,22 +91,29 @@ function modeCommandLabel(mode: PostSeedMode): string {
   return mode === 'reset' ? 'supabase db reset' : 'supabase start';
 }
 
-function printSplitPlan(plan: MixedSplitPlan) {
+function printSplitPlan(
+  plan: MixedSplitPlan,
+  classificationsByFile: Map<string, string>,
+) {
   console.log(info('Proposed migration rewrite (before -> after):'));
   for (const change of plan.changes) {
-    console.log(info(`  ${change.beforeFileName}`));
+    const classification = classificationsByFile.get(change.beforeFileName) ?? 'unknown';
+    console.log(info(`  ${change.beforeFileName} [${classification}]`));
     for (const after of change.afterFileNames) {
       console.log(info(`    -> ${after}`));
     }
   }
 }
 
-async function promptForSplit(plan: MixedSplitPlan): Promise<boolean> {
+async function promptForSplit(
+  plan: MixedSplitPlan,
+  classificationsByFile: Map<string, string>,
+): Promise<boolean> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     return false;
   }
 
-  printSplitPlan(plan);
+  printSplitPlan(plan, classificationsByFile);
   const rl = readline.createInterface({ input, output });
   try {
     const answer = await rl.question('Apply this migration rewrite and continue? [y/N] ');
@@ -173,7 +180,8 @@ async function runPostSeedCommand(
       fileNames: mixedAfterCutoff.map((migration) => migration.fileName),
       migrationsDir,
     });
-    const splitConfirmed = await promptForSplit(plan);
+    const classificationsByFile = new Map(classified.map((m) => [m.fileName, m.classification]));
+    const splitConfirmed = await promptForSplit(plan, classificationsByFile);
     if (!splitConfirmed) {
       const mixedList = mixedAfterCutoff
         .map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`)
@@ -184,11 +192,12 @@ async function runPostSeedCommand(
       );
     }
 
-    await applyMixedSplitPlan({
+    const { backupDir } = await applyMixedSplitPlan({
       plan,
       migrationsDir,
       tempRootDir,
     });
+    console.log(info(`Backup of originals kept at: ${backupDir}`));
 
     classified = await classifyMigrations({ migrationsDir });
     mixedFiles = classified.filter((migration) => migration.classification === 'mixed');

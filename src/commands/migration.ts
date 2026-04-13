@@ -106,13 +106,14 @@ function printClassificationRow(result: MigrationClassificationResult) {
   console.log(info(`  recommendation = ${recommendationText(result)}`));
 }
 
-function printMixedSplitPlan(plan: MixedSplitPlan) {
-  console.log(info(`earliestTargetVersion = ${plan.earliestTargetVersion}`));
-  console.log(info(`touchedFiles = ${plan.touchedFileNames.length}`));
-  console.log('');
-  console.log(info('Planned rewrite (before -> after):'));
+function printMixedSplitPlan(
+  plan: MixedSplitPlan,
+  classificationsByFile: Map<string, string>,
+) {
+  console.log(info('Proposed migration rewrite (before -> after):'));
   for (const change of plan.changes) {
-    console.log(info(`  ${change.beforeFileName}`));
+    const classification = classificationsByFile.get(change.beforeFileName) ?? 'unknown';
+    console.log(info(`  ${change.beforeFileName} [${classification}]`));
     for (const after of change.afterFileNames) {
       console.log(info(`    -> ${after}`));
     }
@@ -392,7 +393,8 @@ export async function runMigrationSplitMixedCommand(options: MigrationSplitMixed
     fileNames: mixed.map((result) => result.fileName),
     migrationsDir,
   });
-  printMixedSplitPlan(plan);
+  const classificationsByFile = new Map(results.map((result) => [result.fileName, result.classification]));
+  printMixedSplitPlan(plan, classificationsByFile);
 
   if (options.apply !== true) {
     console.log('');
@@ -403,7 +405,7 @@ export async function runMigrationSplitMixedCommand(options: MigrationSplitMixed
   const rl = readline.createInterface({ input, output });
   let confirmed = false;
   try {
-    const answer = await rl.question('Apply this migration rewrite? [y/N] ');
+    const answer = await rl.question('Apply this migration rewrite and continue? [y/N] ');
     const normalized = answer.trim().toLowerCase();
     confirmed = normalized === 'y' || normalized === 'yes';
   } finally {
@@ -415,10 +417,11 @@ export async function runMigrationSplitMixedCommand(options: MigrationSplitMixed
     return;
   }
 
-  await applyMixedSplitPlan({
+  const { backupDir } = await applyMixedSplitPlan({
     plan,
     migrationsDir,
     tempRootDir: path.resolve(process.cwd(), 'supabase/.tmp-migrations'),
   });
   console.log(ok('Mixed migration rewrite applied.'));
+  console.log(info(`Backup of originals kept at: ${backupDir}`));
 }

@@ -481,7 +481,7 @@ export async function applyMixedSplitPlan(options: {
   plan: MixedSplitPlan;
   migrationsDir: string;
   tempRootDir: string;
-}): Promise<void> {
+}): Promise<{ backupDir: string }> {
   const { plan, migrationsDir, tempRootDir } = options;
   const remoteVersions = await readLinkedRemoteVersions();
   const blocked = plan.touchedFileNames.filter((fileName) => remoteVersions.has(parseVersion(fileName)));
@@ -519,4 +519,5 @@ export async function applyMixedSplitPlan(options: {
     }
     throw error;
   }
+  return { backupDir };
 }

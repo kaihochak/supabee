@@ -174,6 +174,8 @@ function stripCommentsAndStrings(sql: string): string {
   let inDouble = false;
   let inLineComment = false;
   let inBlockComment = false;
+  let inDollarQuote = false;
+  let dollarTag = '';
 
   while (i < sql.length) {
     const c = sql[i];
@@ -195,6 +197,20 @@ function stripCommentsAndStrings(sql: string): string {
         inBlockComment = false;
         result += '  ';
         i += 2;
+        continue;
+      }
+      result += c === '\n' ? '\n' : ' ';
+      i += 1;
+      continue;
+    }
+
+    if (inDollarQuote) {
+      const endToken = `$${dollarTag}$`;
+      if (sql.startsWith(endToken, i)) {
+        result += ' '.repeat(endToken.length);
+        i += endToken.length;
+        inDollarQuote = false;
+        dollarTag = '';
         continue;
       }
       result += c === '\n' ? '\n' : ' ';
@@ -257,6 +273,20 @@ function stripCommentsAndStrings(sql: string): string {
       result += ' ';
       i += 1;
       continue;
+    }
+
+    if (c === '$') {
+      const rest = sql.slice(i);
+      const match = rest.match(/^\$([a-zA-Z0-9_]*)\$/);
+      if (match) {
+        const tag = match[1];
+        const token = `$${tag}$`;
+        inDollarQuote = true;
+        dollarTag = tag;
+        result += ' '.repeat(token.length);
+        i += token.length;
+        continue;
+      }
     }
 
     result += c;

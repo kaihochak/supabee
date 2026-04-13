@@ -8,6 +8,7 @@ import {
   type MigrationClassificationResult,
   type RecommendedMarker,
 } from '../lib/migration-classifier.js';
+import { applyMixedSplitPlan, buildMixedSplitPlan, type MixedSplitPlan } from '../lib/mixed-migration-splitter.js';
 import { info, ok, sectionWithNote, title, warn } from '../lib/ui.js';
 
 const DEFAULT_MIGRATIONS_DIR = 'supabase/migrations';
@@ -28,6 +29,11 @@ export type MigrationUnmarkOptions = {
   migrationsDir?: string;
   dryRun?: boolean;
   yes?: boolean;
+};
+
+export type MigrationSplitMixedOptions = {
+  migrationsDir?: string;
+  apply?: boolean;
 };
 
 function absoluteMigrationsDir(dir?: string): string {
@@ -98,6 +104,19 @@ function printClassificationRow(result: MigrationClassificationResult) {
   console.log(info(`  class = ${result.classification} (${result.source})`));
   console.log(info(`  reason = ${result.reasons.join('; ')}`));
   console.log(info(`  recommendation = ${recommendationText(result)}`));
+}
+
+function printMixedSplitPlan(plan: MixedSplitPlan) {
+  console.log(info(`earliestTargetVersion = ${plan.earliestTargetVersion}`));
+  console.log(info(`touchedFiles = ${plan.touchedFileNames.length}`));
+  console.log('');
+  console.log(info('Planned rewrite (before -> after):'));
+  for (const change of plan.changes) {
+    console.log(info(`  ${change.beforeFileName}`));
+    for (const after of change.afterFileNames) {
+      console.log(info(`    -> ${after}`));
+    }
+  }
 }
 
 function printEvidenceRow(result: MigrationClassificationResult) {
@@ -214,21 +233,19 @@ export async function runMigrationMarkCommand(options: MigrationMarkOptions = {}
   const markers = resolveMarkers();
   const results = await classifyMigrations({ migrationsDir });
   const mixed = results.filter((result) => result.classification === 'mixed');
-  if (mixed.length > 0) {
-    const names = mixed.map((m) => m.fileName).join(', ');
-    throw new Error(
-      `Cannot mark migrations while mixed schema+DML files exist: ${names}\nSplit each mixed migration into schema-only and data-only files, then re-run.`,
-    );
-  }
 
   const candidates = results.filter((result) => result.recommendedMarker !== null);
   console.log(sectionWithNote(title('Migration mark'), 'Suggests and applies marker comments to migration files.'));
   console.log(info(`migrationsDir = ${migrationsDir}`));
   console.log(info(`candidates = ${candidates.length}`));
+  console.log(info(`mixedSkipped = ${mixed.length}`));
   console.log('');
 
   if (candidates.length === 0) {
     console.log(ok('No marker updates needed.'));
+    if (mixed.length > 0) {
+      console.log(warn(`Skipped ${mixed.length} mixed migration(s). Split mixed files to classify them explicitly.`));
+    }
     return;
   }
 
@@ -237,6 +254,14 @@ export async function runMigrationMarkCommand(options: MigrationMarkOptions = {}
     console.log(info(`${candidate.fileName}`));
     console.log(info(`  add = ${marker}`));
     console.log(info(`  reason = ${candidate.reasons.join('; ')}`));
+  }
+
+  if (mixed.length > 0) {
+    console.log('');
+    console.log(warn(`Skipped ${mixed.length} mixed migration(s):`));
+    for (const item of mixed) {
+      console.log(warn(`  ${item.fileName}`));
+    }
   }
 
   if (options.dryRun === true) {
@@ -345,4 +370,55 @@ export async function runMigrationUnmarkCommand(options: MigrationUnmarkOptions 
     await fs.promises.writeFile(candidate.filePath, updated, 'utf8');
     console.log(ok(`Updated ${candidate.fileName}`));
   }
+}
+
+export async function runMigrationSplitMixedCommand(options: MigrationSplitMixedOptions = {}) {
+  const migrationsDir = absoluteMigrationsDir(options.migrationsDir);
+  await ensureDirectoryExists(migrationsDir);
+  const results = await classifyMigrations({ migrationsDir });
+  const mixed = results.filter((result) => result.classification === 'mixed');
+
+  console.log(sectionWithNote(title('Migration split-mixed'), 'Plans and applies mixed migration rewrites.'));
+  console.log(info(`migrationsDir = ${migrationsDir}`));
+  console.log(info(`mixedFiles = ${mixed.length}`));
+  console.log('');
+
+  if (mixed.length === 0) {
+    console.log(ok('No mixed migrations found.'));
+    return;
+  }
+
+  const plan = await buildMixedSplitPlan({
+    fileNames: mixed.map((result) => result.fileName),
+    migrationsDir,
+  });
+  printMixedSplitPlan(plan);
+
+  if (options.apply !== true) {
+    console.log('');
+    console.log(info('Preview only. Re-run with `--apply` to write migration rewrites.'));
+    return;
+  }
+
+  const rl = readline.createInterface({ input, output });
+  let confirmed = false;
+  try {
+    const answer = await rl.question('Apply this migration rewrite? [y/N] ');
+    const normalized = answer.trim().toLowerCase();
+    confirmed = normalized === 'y' || normalized === 'yes';
+  } finally {
+    rl.close();
+  }
+
+  if (!confirmed) {
+    console.log(warn('Cancelled. No changes written.'));
+    return;
+  }
+
+  await applyMixedSplitPlan({
+    plan,
+    migrationsDir,
+    tempRootDir: path.resolve(process.cwd(), 'supabase/.tmp-migrations'),
+  });
+  console.log(ok('Mixed migration rewrite applied.'));
 }

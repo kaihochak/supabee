@@ -58,6 +58,8 @@ function stripCommentsAndStrings(sql: string): string {
   let inDouble = false;
   let inLineComment = false;
   let inBlockComment = false;
+  let inDollarQuote = false;
+  let dollarTag = '';
 
   while (i < sql.length) {
     const c = sql[i];
@@ -74,6 +76,19 @@ function stripCommentsAndStrings(sql: string): string {
         result += '  ';
         i += 2;
         inBlockComment = false;
+        continue;
+      }
+      result += c === '\n' ? '\n' : ' ';
+      i += 1;
+      continue;
+    }
+    if (inDollarQuote) {
+      const endToken = `$${dollarTag}$`;
+      if (sql.startsWith(endToken, i)) {
+        result += ' '.repeat(endToken.length);
+        i += endToken.length;
+        inDollarQuote = false;
+        dollarTag = '';
         continue;
       }
       result += c === '\n' ? '\n' : ' ';
@@ -121,6 +136,19 @@ function stripCommentsAndStrings(sql: string): string {
       inDouble = true;
       i += 1;
       continue;
+    }
+    if (c === '$') {
+      const rest = sql.slice(i);
+      const match = rest.match(/^\$([a-zA-Z0-9_]*)\$/);
+      if (match) {
+        const tag = match[1];
+        const token = `$${tag}$`;
+        inDollarQuote = true;
+        dollarTag = tag;
+        result += ' '.repeat(token.length);
+        i += token.length;
+        continue;
+      }
     }
 
     result += c;
@@ -255,6 +283,60 @@ function buildSplitSegments(statements: string[]): SplitSegment[] {
   return segments.filter((segment) => segment.statements.length > 0);
 }
 
+type TransactionWrapperPlan = {
+  wrapEachOutputWithTransaction: boolean;
+  coreStatements: string[];
+};
+
+function normalizeStatement(statement: string): string {
+  return stripCommentsAndStrings(statement).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function isBeginStatement(statement: string): boolean {
+  const n = normalizeStatement(statement);
+  return n === 'begin;' || n === 'begin' || n === 'begin transaction;' || n === 'begin transaction';
+}
+
+function isCommitStatement(statement: string): boolean {
+  const n = normalizeStatement(statement);
+  return n === 'commit;' || n === 'commit' || n === 'commit transaction;' || n === 'commit transaction';
+}
+
+function isRollbackStatement(statement: string): boolean {
+  const n = normalizeStatement(statement);
+  return n === 'rollback;' || n === 'rollback' || n === 'rollback transaction;' || n === 'rollback transaction';
+}
+
+function deriveTransactionWrapperPlan(statements: string[]): TransactionWrapperPlan {
+  if (statements.length === 0) {
+    return { wrapEachOutputWithTransaction: false, coreStatements: statements };
+  }
+
+  if (statements.some((statement) => isRollbackStatement(statement))) {
+    throw new Error('top-level ROLLBACK detected');
+  }
+
+  const firstIsBegin = isBeginStatement(statements[0]);
+  const lastIsCommit = isCommitStatement(statements[statements.length - 1]);
+
+  if (firstIsBegin !== lastIsCommit) {
+    throw new Error('unbalanced top-level BEGIN/COMMIT');
+  }
+  if (!firstIsBegin) {
+    if (statements.some((statement) => isBeginStatement(statement) || isCommitStatement(statement))) {
+      throw new Error('top-level transaction statements found in non-wrapper positions');
+    }
+    return { wrapEachOutputWithTransaction: false, coreStatements: statements };
+  }
+
+  const coreStatements = statements.slice(1, -1);
+  if (coreStatements.some((statement) => isBeginStatement(statement) || isCommitStatement(statement))) {
+    throw new Error('nested top-level BEGIN/COMMIT detected inside transaction body');
+  }
+
+  return { wrapEachOutputWithTransaction: true, coreStatements };
+}
+
 async function readMigrationFiles(migrationsDir: string): Promise<MigrationFile[]> {
   const entries = await fs.promises.readdir(migrationsDir, { withFileTypes: true });
   const files: MigrationFile[] = [];
@@ -320,18 +402,30 @@ export async function buildMixedSplitPlan(options: {
     }
 
     const statements = splitTopLevelSqlStatements(originalSql);
-    const segments = buildSplitSegments(statements);
+    let txPlan: TransactionWrapperPlan;
+    try {
+      txPlan = deriveTransactionWrapperPlan(statements);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Cannot auto-split ${file.fileName}: ${message}. Split this migration manually to preserve transaction semantics.`,
+      );
+    }
+
+    const segments = buildSplitSegments(txPlan.coreStatements);
     if (segments.length <= 1) {
       throw new Error(`Cannot split ${file.fileName}: parser did not find separable schema/data groups.`);
     }
     const baseName = file.fileName.replace(/^\d+_/, '').replace(/\.sql$/i, '');
     let segmentIndex = 1;
     for (const segment of segments) {
+      const body = `${segment.statements.join('\n\n')}\n`;
+      const wrapped = txPlan.wrapEachOutputWithTransaction ? `BEGIN;\n${body}\nCOMMIT;\n` : body;
       plannedOutputs.push({
         sourceFileName: file.fileName,
         sourceVersion: file.version,
         fileSuffix: `${baseName}_${segment.kind}_${segmentIndex}.sql`,
-        content: `${segment.statements.join('\n\n')}\n`,
+        content: wrapped,
         kind: 'split',
       });
       segmentIndex += 1;

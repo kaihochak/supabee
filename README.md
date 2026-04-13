@@ -301,6 +301,18 @@ supabee migration unmark --dry-run
 supabee migration unmark --yes
 ```
 
+### `migration split-mixed`
+
+Builds a full before/after rewrite plan for mixed migrations. Use `--apply` to execute after confirmation.
+
+```bash
+# preview only
+supabee migration split-mixed
+
+# apply with interactive confirmation
+supabee migration split-mixed --apply
+```
+
 ### Supabase passthrough
 
 Unknown commands are forwarded to Supabase CLI:

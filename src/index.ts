@@ -8,7 +8,12 @@ import { runInitCommand } from './commands/init.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runDbResetCommand, runStartCommand } from './commands/db-reset.js';
 import { runCutoffDetectCommand } from './commands/cutoff.js';
-import { runMigrationAuditCommand, runMigrationMarkCommand, runMigrationUnmarkCommand } from './commands/migration.js';
+import {
+  runMigrationAuditCommand,
+  runMigrationMarkCommand,
+  runMigrationSplitMixedCommand,
+  runMigrationUnmarkCommand,
+} from './commands/migration.js';
 import { runCommand } from './lib/subprocess.js';
 import { error as errText, info, warn } from './lib/ui.js';
 
@@ -35,7 +40,7 @@ function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOp
 
 const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'cutoff', 'migration', 'help']);
 const KNOWN_DB_SUBCOMMANDS = new Set(['reset', 'help']);
-const KNOWN_MIGRATION_SUBCOMMANDS = new Set(['audit', 'mark', 'unmark', 'help']);
+const KNOWN_MIGRATION_SUBCOMMANDS = new Set(['audit', 'mark', 'unmark', 'split-mixed', 'help']);
 
 function firstNonOptionToken(args: string[]): { token: string; index: number } | null {
   for (let index = 0; index < args.length; index += 1) {
@@ -262,6 +267,13 @@ migrationCommand
   .option('--dry-run', 'Preview marker removals without writing files')
   .option('--yes', 'Remove all found marker updates without interactive prompts')
   .action((options: { migrationsDir?: string; dryRun?: boolean; yes?: boolean } = {}) => runMigrationUnmarkCommand(options));
+
+migrationCommand
+  .command('split-mixed')
+  .description('Preview or apply mixed-migration split rewrites')
+  .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
+  .option('--apply', 'Apply planned rewrite after confirmation')
+  .action((options: { migrationsDir?: string; apply?: boolean } = {}) => runMigrationSplitMixedCommand(options));
 
 const dbCommand = program.command('db').description('Database orchestration commands');
 

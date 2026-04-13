@@ -205,6 +205,7 @@ Classification is automatic by SQL patterns (`INSERT/UPDATE/DELETE/...` vs `CREA
 Mixed schema+DML migrations are blocked when they are after cutoff and must be split.
 Mixed migrations at/before cutoff run in compatibility mode by default (warning only). Use `--strict-mixed` to fail on any mixed migration.
 When post-cutoff mixed files are detected, `supabee` can prompt to auto-split them inline during `db reset`/`start`.
+Before applying, `supabee` prints a full before/after migration filename rewrite plan and asks for confirmation.
 Auto-split is blocked if a mixed migration version is already applied on the linked remote project.
 
 If `[cutoff_timestamp]` is omitted, `supabee` auto-detects it from `supabase migration list --linked` by taking the latest migration version that exists in both local and remote (works even when remote has gaps).

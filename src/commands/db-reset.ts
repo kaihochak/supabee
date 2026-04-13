@@ -6,7 +6,7 @@ import { runCommand } from '../lib/subprocess.js';
 import { sectionWithNote, title, info, ok } from '../lib/ui.js';
 import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cutoff.js';
 import { classifyMigrations, resolveMarkers } from '../lib/migration-classifier.js';
-import { autoSplitMixedMigrations } from '../lib/mixed-migration-splitter.js';
+import { applyMixedSplitPlan, buildMixedSplitPlan, type MixedSplitPlan } from '../lib/mixed-migration-splitter.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
@@ -91,18 +91,25 @@ function modeCommandLabel(mode: PostSeedMode): string {
   return mode === 'reset' ? 'supabase db reset' : 'supabase start';
 }
 
-async function promptForSplit(mixedFileNames: string[]): Promise<boolean> {
+function printSplitPlan(plan: MixedSplitPlan) {
+  console.log(info('Proposed migration rewrite (before -> after):'));
+  for (const change of plan.changes) {
+    console.log(info(`  ${change.beforeFileName}`));
+    for (const after of change.afterFileNames) {
+      console.log(info(`    -> ${after}`));
+    }
+  }
+}
+
+async function promptForSplit(plan: MixedSplitPlan): Promise<boolean> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     return false;
   }
 
-  console.log(info('Post-cutoff mixed migrations detected:'));
-  for (const fileName of mixedFileNames) {
-    console.log(info(`  ${fileName}`));
-  }
+  printSplitPlan(plan);
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question('Split these mixed migrations now and continue? [y/N] ');
+    const answer = await rl.question('Apply this migration rewrite and continue? [y/N] ');
     const normalized = answer.trim().toLowerCase();
     return normalized === 'y' || normalized === 'yes';
   } finally {
@@ -162,7 +169,11 @@ async function runPostSeedCommand(
     );
   }
   if (mixedAfterCutoff.length > 0) {
-    const splitConfirmed = await promptForSplit(mixedAfterCutoff.map((migration) => migration.fileName));
+    const plan = await buildMixedSplitPlan({
+      fileNames: mixedAfterCutoff.map((migration) => migration.fileName),
+      migrationsDir,
+    });
+    const splitConfirmed = await promptForSplit(plan);
     if (!splitConfirmed) {
       const mixedList = mixedAfterCutoff
         .map((migration) => `- ${migration.fileName} (${migration.reasons.join('; ')})`)
@@ -173,8 +184,8 @@ async function runPostSeedCommand(
       );
     }
 
-    await autoSplitMixedMigrations({
-      fileNames: mixedAfterCutoff.map((migration) => migration.fileName),
+    await applyMixedSplitPlan({
+      plan,
       migrationsDir,
       tempRootDir,
     });

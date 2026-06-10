@@ -91,3 +91,19 @@ export function diffRemove(message: string) {
 export function diffAdd(message: string) {
   return useColor ? `${paint('+', 'green')} ${paint(message, 'green')}` : `+ ${message}`;
 }
+
+export function heading(message: string) {
+  return useColor ? style(message, 'bold', 'cyan') : message;
+}
+
+export function hr(width = 60) {
+  return useColor ? paint(line('─', width), 'dim') : line('─', width);
+}
+
+export function green(message: string) {
+  return paint(message, 'green');
+}
+
+export function red(message: string) {
+  return paint(message, 'red');
+}

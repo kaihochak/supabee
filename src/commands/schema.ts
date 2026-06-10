@@ -49,6 +49,14 @@ function createFilename(name: string, seqNum: number): string {
   return `${String(seqNum).padStart(4, '0')}_${sanitizeForFilename(name)}.sql`;
 }
 
+function extractCreateTableName(sql: string): string {
+  return (
+    sql.match(
+      /CREATE\s+(?:TEMP(?:ORARY)?\s+|UNLOGGED\s+|GLOBAL\s+TEMPORARY\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:(?:"?[a-zA-Z0-9_]+"?)\.)?"?([a-zA-Z0-9_]+)"?/i,
+    )?.[1] || 'table'
+  );
+}
+
 function extractStatements(sql: string): CategorizedStatements {
   const normalizedSql = sql.replace(/\r\n/g, '\n');
   const results: CategorizedStatements = {
@@ -157,12 +165,11 @@ function extractStatements(sql: string): CategorizedStatements {
         categorySql.match(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:"?public"?\.)?"?([a-zA-Z0-9_]+)"?/i)?.[1] ||
           'function',
       );
-    } else if (firstLine.match(/^CREATE\s+TABLE\b/i) || categorySql.includes('CREATE TABLE')) {
-      push(
-        'tables',
-        categorySql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\.)?"?([a-zA-Z0-9_]+)"?/i)?.[1] ||
-          'table',
-      );
+    } else if (
+      firstLine.match(/^CREATE\s+(?:TEMP(?:ORARY)?\s+|UNLOGGED\s+|GLOBAL\s+TEMPORARY\s+)?TABLE\b/i) ||
+      /\bCREATE\s+(?:TEMP(?:ORARY)?\s+|UNLOGGED\s+|GLOBAL\s+TEMPORARY\s+)?TABLE\b/i.test(categorySql)
+    ) {
+      push('tables', extractCreateTableName(categorySql));
     } else if (firstLine.match(/^CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\b/i) || categorySql.includes('CREATE VIEW')) {
       push(
         'views',

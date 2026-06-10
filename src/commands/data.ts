@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline';
 import { info, ok, error as errText } from '../lib/ui.js';
 import { resolveCommandConfig, type DataConfig } from '../lib/config.js';
 import { prepareSplitOutputDir } from '../lib/output.js';
@@ -131,14 +132,31 @@ function breakDownInsertStatement(statement: string, tableName: string, maxRowsP
   return chunks;
 }
 
-function parseSeedContent(content: string): ParsedSeedContent {
-  const lines = content.split('\n');
+// Streams the file line-by-line instead of reading it into a single string.
+// Large seed dumps (>512 MiB) exceed V8's max string length, so a whole-file
+// read throws "Cannot create a string longer than 0x1fffffe8 characters".
+async function parseSeedFile(filePath: string): Promise<ParsedSeedContent> {
   const tableContent: Record<string, string[]> = {};
+  const sequenceLines: string[] = [];
   let currentTable: string | null = null;
   let currentStatement: string[] = [];
   let inInsertStatement = false;
+  let lineCount = 0;
 
-  for (const line of lines) {
+  const rl = readline.createInterface({
+    input: fs.createReadStream(filePath, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of rl) {
+    lineCount += 1;
+
+    // Sequence detection mirrors the original whole-file filter: it runs on
+    // every line, independent of INSERT-statement parsing.
+    if (line.includes('SEQUENCE SET') || (line.trim().startsWith('SELECT') && line.includes('setval'))) {
+      sequenceLines.push(line);
+    }
+
     if (!inInsertStatement && (line.trim().startsWith('--') || line.trim() === '')) continue;
 
     const insertMatch = line.match(/^INSERT\s+INTO\s+(["`']?)([^."`'\s(]+)\1\.(["`']?)([^."`'\s(]+)\3/i);
@@ -171,11 +189,15 @@ function parseSeedContent(content: string): ParsedSeedContent {
     tableContent[currentTable].push(currentStatement.join('\n'));
   }
 
-  const sequenceLines = lines.filter(
-    (line) => line.includes('SEQUENCE SET') || (line.trim().startsWith('SELECT') && line.includes('setval')),
-  );
+  return { tableContent, sequenceLines, lineCount };
+}
 
-  return { tableContent, sequenceLines, lineCount: lines.length };
+// Promise wrapper around stream.write so we can serialize chunked writes and
+// surface backpressure/errors with await.
+function writeChunk(stream: fs.WriteStream, chunk: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    stream.write(chunk, (err) => (err ? reject(err) : resolve()));
+  });
 }
 
 function asPositiveNumber(value: unknown, fallback: number): number {
@@ -263,15 +285,15 @@ function writeTableChunks(config: DataConfig, table: string, statements: string[
   return counter + 1;
 }
 
-function splitData(config: DataConfig) {
+async function splitData(config: DataConfig) {
   console.log(info(`Reading data file: ${config.inputFile}`));
-  const dataContent = fs.readFileSync(config.inputFile, 'utf8');
-  console.log(ok(`Loaded data file: ${(dataContent.length / 1024 / 1024).toFixed(2)}MB`));
+  const fileSizeBytes = fs.statSync(config.inputFile).size;
+  console.log(ok(`Loaded data file: ${(fileSizeBytes / 1024 / 1024).toFixed(2)}MB`));
 
   fs.writeFileSync(path.join(config.outputDir, '001_setup.sql'), "-- Initial setup\nSET session_replication_role = 'replica';\n");
   fs.writeFileSync(path.join(config.outputDir, '999_cleanup.sql'), '-- Cleanup\nRESET ALL;\n');
 
-  const parsed = parseSeedContent(dataContent);
+  const parsed = await parseSeedFile(config.inputFile);
   console.log(info(`Processing ${parsed.lineCount} lines...`));
 
   let counter = 2;
@@ -304,16 +326,30 @@ function shouldIgnoreFile(fileName: string, patterns: string[]): boolean {
   });
 }
 
-function reconstructData(config: DataConfig) {
+async function reconstructData(config: DataConfig) {
   const files = fs
     .readdirSync(config.outputDir)
     .filter((file) => file.endsWith('.sql'))
     .filter((file) => !shouldIgnoreFile(file, config.ignoreInReconstruct))
     .sort((a, b) => a.localeCompare(b));
 
-  const contents = files.map((file) => fs.readFileSync(path.join(config.outputDir, file), 'utf8').trimEnd());
-  const reconstructed = `${contents.join('\n\n')}\n`;
-  fs.writeFileSync(config.reconstructedFile, reconstructed, 'utf8');
+  // Stream the joined output so a >512 MiB reconstruction never has to exist
+  // as a single in-memory string. Mirrors `${contents.join('\n\n')}\n`.
+  const out = fs.createWriteStream(config.reconstructedFile, { encoding: 'utf8' });
+  const finished = new Promise<void>((resolve, reject) => {
+    out.on('error', reject);
+    out.on('finish', resolve);
+  });
+
+  for (let i = 0; i < files.length; i += 1) {
+    const content = fs.readFileSync(path.join(config.outputDir, files[i]), 'utf8').trimEnd();
+    if (i > 0) await writeChunk(out, '\n\n');
+    await writeChunk(out, content);
+  }
+  await writeChunk(out, '\n');
+  out.end();
+  await finished;
+
   console.log(ok(`Reconstructed data written to: ${config.reconstructedFile}`));
 }
 
@@ -325,12 +361,9 @@ function getRowCountByTable(tableContent: Record<string, string[]>): Record<stri
   return counts;
 }
 
-function validateData(config: DataConfig): boolean {
-  const originalContent = fs.readFileSync(config.inputFile, 'utf8');
-  const reconstructedContent = fs.readFileSync(config.reconstructedFile, 'utf8');
-
-  const originalParsed = parseSeedContent(originalContent);
-  const reconstructedParsed = parseSeedContent(reconstructedContent);
+async function validateData(config: DataConfig): Promise<boolean> {
+  const originalParsed = await parseSeedFile(config.inputFile);
+  const reconstructedParsed = await parseSeedFile(config.reconstructedFile);
 
   const originalRows = getRowCountByTable(originalParsed.tableContent);
   const reconstructedRows = getRowCountByTable(reconstructedParsed.tableContent);
@@ -419,10 +452,10 @@ export async function runDataCommand(args: string[]) {
       split: async ({ config, options }) => {
         const shouldBackup = options.backup ?? config.backupByDefault;
         await prepareSplitOutputDir(config.outputDir, shouldBackup, 'Data', { keepFiles: config.keepFiles });
-        splitData(config);
+        await splitData(config);
       },
       reconstruct: async ({ config }) => {
-        reconstructData(config);
+        await reconstructData(config);
       },
       validate: async ({ config }) => {
         return validateData(config);

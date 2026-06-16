@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] - 2026-06-15
+
+### Added
+- `db reset` / `db start` now warn by default when mixed schema+DML migrations at or before the cutoff will run as-is (compatibility mode). These are already applied on the linked remote, so they cannot be auto-split, and their embedded DML can collide with seed/dump rows (e.g. duplicate primary keys). Pass `--strict-mixed` to fail instead.
+
 ## [0.3.0] - 2026-04-09
 
 ### Added

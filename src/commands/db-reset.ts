@@ -3,7 +3,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { runCommand } from '../lib/subprocess.js';
-import { sectionWithNote, title, info, ok, fail } from '../lib/ui.js';
+import { sectionWithNote, title, info, ok, fail, warn } from '../lib/ui.js';
 import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cutoff.js';
 import { classifyMigrations } from '../lib/migration-classifier.js';
 import { applyMixedSplitPlan, buildMixedSplitPlan, type MixedSplitPlan } from '../lib/mixed-migration-splitter.js';
@@ -162,6 +162,27 @@ async function runPostSeedCommand(
         `Split each mixed migration into separate schema-only and data-only files:\n${mixedList}`,
     );
   }
+
+  // Mixed migrations at/before cutoff are already applied on the linked remote, so they
+  // cannot be auto-split (renumbering applied history is blocked). They run verbatim during
+  // reset, and any embedded DML re-runs on top of the seed/dump — a common source of
+  // duplicate-key collisions. Warn by default (compatibility mode); --strict-mixed fails instead.
+  const mixedAtOrBeforeCutoff = mixedFiles.filter((migration) => migration.timestamp <= cutoff);
+  if (mixedAtOrBeforeCutoff.length > 0) {
+    console.log(
+      warn(`${mixedAtOrBeforeCutoff.length} mixed schema+DML migration(s) at/before cutoff will run as-is (compatibility mode):`),
+    );
+    for (const migration of mixedAtOrBeforeCutoff) {
+      console.log(info(`  ${migration.fileName} (${migration.reasons.join('; ')})`));
+    }
+    console.log(
+      info(
+        'These are already applied on the linked remote, so supabee cannot auto-split them. Their embedded DML re-runs during reset and may collide with seed/dump rows (e.g. duplicate primary keys). Make the DML idempotent or move it out of the migration, or pass --strict-mixed to fail fast.',
+      ),
+    );
+    console.log('');
+  }
+
   if (mixedAfterCutoff.length > 0) {
     const plan = await buildMixedSplitPlan({
       fileNames: mixedAfterCutoff.map((migration) => migration.fileName),

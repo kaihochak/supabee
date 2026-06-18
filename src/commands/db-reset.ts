@@ -8,6 +8,7 @@ import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cu
 import { classifyMigrations } from '../lib/migration-classifier.js';
 import { applyMixedSplitPlan, buildMixedSplitPlan, type MixedSplitPlan } from '../lib/mixed-migration-splitter.js';
 import { renderResetSummary, type ClassifiedMigrationLite } from '../lib/reset-summary.js';
+import { runSeedRemoteCommand } from './seed-remote.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
@@ -21,6 +22,8 @@ export type PostSeedCommandOptions = {
   dbUrl?: string;
   /** Skip the interactive remote-reset confirmation prompt (for CI / non-interactive runs). */
   yes?: boolean;
+  /** Reset with --no-seed, then seed via the resumable direct-psql path. Requires --db-url. */
+  resumableSeed?: boolean;
 };
 
 type RemoteTarget = { args: string[]; label: string; isDbUrl: boolean };
@@ -201,6 +204,13 @@ async function runPostSeedCommand(
 ) {
   // Fail fast on invalid flag combinations before touching the cutoff or disk.
   const remoteTarget = resolveRemoteTarget(mode, options);
+
+  // The resumable seed path runs direct psql, which needs an explicit connection
+  // string — so it requires --db-url (a linked target hides the DB password).
+  const resumableSeed = options.resumableSeed === true;
+  if (resumableSeed && (!remoteTarget || !remoteTarget.isDbUrl)) {
+    throw new Error('--resumable-seed requires --db-url (the linked target cannot provide a psql connection string).');
+  }
 
   // Confirm the destructive remote reset up front, before any cutoff detection or disk work.
   if (remoteTarget) {
@@ -419,11 +429,12 @@ async function runPostSeedCommand(
   // ---- 2) Run the base command (reset/start) ----
   if (failedStep === 0) {
     try {
-      console.log(info(`Running ${modeCommandLabel(mode)}...`));
-      await runCommand(
-        'supabase',
-        mode === 'reset' ? ['db', 'reset', ...(remoteTarget?.args ?? [])] : ['start'],
-      );
+      // In resumable-seed mode, reset with --no-seed so the schema is rebuilt
+      // cleanly and fast; the data is loaded afterwards by the direct-psql step.
+      const resetArgs = ['db', 'reset', ...(remoteTarget?.args ?? [])];
+      if (resumableSeed) resetArgs.push('--no-seed');
+      console.log(info(`Running ${modeCommandLabel(mode)}${resumableSeed ? ' (--no-seed)' : ''}...`));
+      await runCommand('supabase', mode === 'reset' ? resetArgs : ['start']);
       console.log(ok(`${modeCommandLabel(mode)} completed.`));
     } catch (error) {
       failedStep = 2;
@@ -473,7 +484,26 @@ async function runPostSeedCommand(
     }
   }
 
-  // ---- 4) Reapply deferred migrations ----
+  // ---- 4) Seed remote via resumable direct-psql path (only in --resumable-seed mode) ----
+  if (failedStep === 0 && resumableSeed) {
+    try {
+      console.log('');
+      await runSeedRemoteCommand({ dbUrl: options.dbUrl });
+    } catch (error) {
+      failedStep = 4;
+      stepLabel = 'seed remote (psql)';
+      failureMessage = error instanceof Error ? error.message : String(error);
+      // seed-remote already printed a `--from` resume command. After the data is
+      // fully seeded, the deferred post-cutoff migrations still need applying.
+      // Use a placeholder for the URL so the password is not echoed into logs.
+      const migrationTarget = remoteTarget?.isDbUrl ? '--db-url <your-db-url> --yes' : '--linked --yes';
+      console.log(
+        warn(`Once seeding is complete, finish by applying the post-cutoff migrations: supabase migration up ${migrationTarget}`),
+      );
+    }
+  }
+
+  // ---- 5) Reapply deferred migrations ----
   if (failedStep === 0 && replayDeferredNames.length > 0) {
     try {
       if (usePsql) {
@@ -493,7 +523,7 @@ async function runPostSeedCommand(
       }
       newApplied = true;
     } catch (error) {
-      failedStep = 4;
+      failedStep = 5;
       stepLabel = applyLabel;
       failureMessage = error instanceof Error ? error.message : String(error);
     }

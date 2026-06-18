@@ -7,6 +7,7 @@ import { runDataCommand } from './commands/data.js';
 import { runInitCommand } from './commands/init.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runDbResetCommand, runStartCommand } from './commands/db-reset.js';
+import { runSeedRemoteCommand } from './commands/seed-remote.js';
 import { runCutoffDetectCommand } from './commands/cutoff.js';
 import {
   runMigrationAuditCommand,
@@ -39,7 +40,7 @@ function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOp
 }
 
 const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'cutoff', 'migration', 'help']);
-const KNOWN_DB_SUBCOMMANDS = new Set(['reset', 'help']);
+const KNOWN_DB_SUBCOMMANDS = new Set(['reset', 'seed-remote', 'help']);
 const KNOWN_MIGRATION_SUBCOMMANDS = new Set(['audit', 'mark', 'unmark', 'split-mixed', 'help']);
 
 function firstNonOptionToken(args: string[]): { token: string; index: number } | null {
@@ -288,6 +289,7 @@ dbCommand
   .option('--linked', 'Reset the linked Supabase project instead of the local database (destructive; prompts for confirmation)')
   .option('--db-url <url>', 'Reset the database at this Postgres connection string instead of local (destructive; prompts for confirmation)')
   .option('--yes', 'Skip the remote-reset confirmation prompt (for CI / non-interactive runs)')
+  .option('--resumable-seed', 'Reset with --no-seed, then seed via the resumable direct-psql path (requires --db-url)')
   .addHelpText(
     'after',
     `
@@ -300,12 +302,18 @@ What This Command Does
 Remote resets are destructive: they WIPE the target database and reseed it from
 local seed files. They prompt for confirmation; pass --yes to skip the prompt.
 
+Large remote datasets: the Supabase seed path can time out and leave the database
+unhealthy. With --resumable-seed (requires --db-url), the reset runs --no-seed,
+then data is loaded file-by-file via direct psql so a timeout can be resumed with
+\`supabee db seed-remote --from <file>\` instead of starting over.
+
 Examples
   supabee db reset 20260309180959
   supabee db reset
   supabee db reset 20260309180959 --psql
   supabee db reset --linked
   supabee db reset 20260309180959 --linked --yes
+  supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --resumable-seed --yes
 `,
   )
   .action(
@@ -320,9 +328,37 @@ Examples
         linked?: boolean;
         dbUrl?: string;
         yes?: boolean;
+        resumableSeed?: boolean;
       } = {},
     ) => runDbResetCommand(cutoffTimestamp, options),
   );
+
+dbCommand
+  .command('seed-remote')
+  .description('Seed a remote database from split seed files via psql (resumable on timeout)')
+  .option('--db-url <url>', 'Postgres connection string (falls back to SUPABASE_DB_URL / PGURI env)')
+  .option('--from <file>', 'Resume from this seed file (inclusive); matches by file name or relative path')
+  .option('--dry-run', 'Print the ordered seed queue and exit without seeding')
+  .addHelpText(
+    'after',
+    `
+What This Command Does
+  1) Reads ordered seed files from [db.seed].sql_paths in supabase/config.toml
+  2) Runs each file directly via psql, atomically (--single-transaction + ON_ERROR_STOP)
+  3) Disables statement_timeout so long inserts are not cut off
+  4) On failure, prints a --from command to resume from the failed file
+
+Because each file is atomic, a timeout rolls that file back — the remote schema
+stays healthy and resume re-runs the failed file with no duplicate rows. Use the
+direct (5432) connection, not the pooler (6543), so statement_timeout can be unset.
+
+Examples
+  supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require"
+  supabee db seed-remote --db-url "postgresql://...:5432/postgres" --dry-run
+  supabee db seed-remote --db-url "postgresql://...:5432/postgres" --from 015_public_cities_69.sql
+`,
+  )
+  .action((options: { dbUrl?: string; from?: string; dryRun?: boolean } = {}) => runSeedRemoteCommand(options));
 
 program
   .command('start [cutoffTimestamp]')

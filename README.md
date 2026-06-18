@@ -221,6 +221,8 @@ Before doing any work, a remote reset prompts for confirmation (`Reset <target>?
 
 When targeting a remote with `--linked`, the auto-detected cutoff is read from that same remote, so it equals the latest migration already applied there. If you want a different cutoff (or are using `--db-url` to a database other than the linked one), pass the cutoff explicitly.
 
+**Large remote datasets (`--resumable-seed`).** Supabase's built-in seed step (used by a normal remote reset) runs the whole seed as one long operation that can hit the pooler's statement timeout. When it dies mid-seed it can leave the database unhealthy — and re-running starts seeding from scratch. With `--resumable-seed` (requires `--db-url`), `db reset` instead runs `supabase db reset --no-seed` (a fast, healthy schema rebuild), seeds the data file-by-file via direct `psql`, then reapplies the post-cutoff migrations. Because each seed file is atomic, a timeout rolls that file back and you resume from it with [`db seed-remote --from`](#db-seed-remote) instead of redoing the whole load. See [`db seed-remote`](#db-seed-remote) for the seeding mechanics.
+
 ```bash
 # default re-apply mode: supabase migration up
 supabee db reset 20260309180959
@@ -237,7 +239,39 @@ supabee db reset --strict-mixed
 supabee db reset --linked
 supabee db reset 20260309180959 --linked --yes   # skip prompt (CI)
 supabee db reset --db-url "postgres://..." --yes
+
+# large remote datasets: no-seed reset + resumable direct-psql seeding + reapply
+supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --resumable-seed --yes
 ```
+
+### `db seed-remote`
+
+Seeds a remote database by running its split seed files **directly via `psql`**, instead of through Supabase's built-in seed step. Built for large datasets where the Supabase seed path times out: it is resumable and leaves the schema healthy on failure.
+
+- Reads the ordered file list from `[db.seed].sql_paths` in `supabase/config.toml` (the same list Supabase seeds from) and expands the globs in declared order, lexically sorted.
+- Runs each file atomically with `psql --single-transaction -v ON_ERROR_STOP=1`, streamed from disk (no whole-file buffering), with `statement_timeout = 0` for the session.
+- On failure, the whole failing file rolls back — so the remote schema stays intact and only data is incomplete — and `supabee` prints a `--from` command to resume from that file. Already-seeded files are skipped, and the atomic re-run avoids duplicate rows.
+
+Connection comes from `--db-url`, or the `SUPABASE_DB_URL` / `PGURI` environment variable. Use the **direct (5432) connection, not the pooler (6543)**, so `statement_timeout` can be unset.
+
+| Option | Description |
+| --- | --- |
+| `--db-url <url>` | Postgres connection string (falls back to `SUPABASE_DB_URL` / `PGURI`). |
+| `--from <file>` | Resume from this seed file (inclusive); matches by file name or relative path. |
+| `--dry-run` | Print the ordered seed queue and exit without seeding. |
+
+```bash
+# preview the ordered queue
+supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --dry-run
+
+# seed everything
+supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require"
+
+# resume after a timeout at file 015_public_cities_69.sql
+supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --from 015_public_cities_69.sql
+```
+
+> Prefer the one-command [`db reset --resumable-seed`](#db-reset) for daily use — it orchestrates the no-seed reset, this seeding step, and the post-cutoff migration reapply together. Reach for `db seed-remote` standalone to resume a failed seed or to seed without a reset.
 
 ### `start`
 

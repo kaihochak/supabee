@@ -213,6 +213,14 @@ When linked lookup succeeds, `supabee` stores the value in `supabee.config.json`
 If linked lookup fails (for example in CI), it falls back to `postSeedCutoffByEnv.<env>` when `--env` is set, otherwise `postSeedCutoff`.
 If not linked, `supabee` runs `supabase link` and retries once.
 
+By default `db reset` targets the local database. Pass `--linked` to reset the linked Supabase project, or `--db-url <url>` to reset the database at an explicit Postgres connection string. Remote resets run the same defer/reset/replay flow but forward the target flag to `supabase db reset` and `supabase migration up`.
+
+> **Warning:** A remote reset is destructive — it WIPES the target database's `public` schema and reseeds it from your local seed files. Use it only against throwaway/staging databases, not production.
+
+Before doing any work, a remote reset prompts for confirmation (`Reset <target>? [y/N]`). Pass `--yes` to skip the prompt for CI / non-interactive runs; in a non-interactive shell without `--yes`, the command refuses rather than wiping a remote unattended. `--linked`/`--db-url` cannot be combined with each other or with `--psql`.
+
+When targeting a remote with `--linked`, the auto-detected cutoff is read from that same remote, so it equals the latest migration already applied there. If you want a different cutoff (or are using `--db-url` to a database other than the linked one), pass the cutoff explicitly.
+
 ```bash
 # default re-apply mode: supabase migration up
 supabee db reset 20260309180959
@@ -224,6 +232,11 @@ supabee db reset 20260309180959 --psql
 
 # strict mixed policy
 supabee db reset --strict-mixed
+
+# remote reset (destructive; prompts for confirmation)
+supabee db reset --linked
+supabee db reset 20260309180959 --linked --yes   # skip prompt (CI)
+supabee db reset --db-url "postgres://..." --yes
 ```
 
 ### `start`

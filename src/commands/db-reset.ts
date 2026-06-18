@@ -15,7 +15,76 @@ export type PostSeedCommandOptions = {
   tempDir?: string;
   env?: string;
   strictMixed?: boolean;
+  /** Target the linked Supabase project instead of the local database (reset only). */
+  linked?: boolean;
+  /** Target an explicit Postgres connection string instead of the local database (reset only). */
+  dbUrl?: string;
+  /** Skip the interactive remote-reset confirmation prompt (for CI / non-interactive runs). */
+  yes?: boolean;
 };
+
+type RemoteTarget = { args: string[]; label: string; isDbUrl: boolean };
+
+/**
+ * Resolve whether the run targets a remote database and, if so, the supabase CLI
+ * flags to forward. Returns null for a local run. Throws on invalid flag combos.
+ *
+ * A remote reset is destructive: `supabase db reset --linked/--db-url` wipes the
+ * target's public schema and reseeds it from local seed files. The destructive
+ * confirmation is handled separately by confirmRemoteReset().
+ */
+function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions): RemoteTarget | null {
+  const linked = options.linked === true;
+  const dbUrl = options.dbUrl;
+  if (!linked && !dbUrl) return null;
+
+  if (mode !== 'reset') {
+    throw new Error('Remote targets (--linked / --db-url) are only supported by `db reset`, not `start`.');
+  }
+  if (linked && dbUrl) {
+    throw new Error('Use either --linked or --db-url, not both.');
+  }
+  if (options.psql === true) {
+    throw new Error('--psql applies migrations to the local database only; it cannot be combined with a remote target.');
+  }
+
+  // Forward supabase's own global --yes so the underlying `supabase db reset` /
+  // `migration up` do not prompt again. supabee has already gated the destructive
+  // action via confirmRemoteReset(), so a second downstream prompt would be a
+  // redundant double-confirm interactively and a hang ("context canceled") in CI.
+  return dbUrl
+    ? { args: ['--db-url', dbUrl, '--yes'], label: 'remote (--db-url)', isDbUrl: true }
+    : { args: ['--linked', '--yes'], label: 'linked remote project', isDbUrl: false };
+}
+
+/**
+ * Confirm a destructive remote reset before any files are touched. Returns true
+ * to proceed. `--yes` skips the prompt; a non-interactive shell without `--yes`
+ * refuses rather than wiping a remote database unattended.
+ */
+async function confirmRemoteReset(target: RemoteTarget, options: PostSeedCommandOptions): Promise<boolean> {
+  if (options.yes === true) return true;
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error(
+      'Refusing to reset a remote database in a non-interactive shell without confirmation.\n' +
+        'This WIPES the target database and reseeds it from your local seed files.\n' +
+        'Re-run with --yes to proceed.',
+    );
+  }
+
+  console.log(
+    warn(`About to reset ${target.label}. This WIPES the target database and reseeds it from your local seed files.`),
+  );
+  const rl = readline.createInterface({ input, output });
+  try {
+    const answer = await rl.question(`Reset ${target.label}? [y/N] `);
+    const normalized = answer.trim().toLowerCase();
+    return normalized === 'y' || normalized === 'yes';
+  } finally {
+    rl.close();
+  }
+}
 
 type PostSeedMode = 'reset' | 'start';
 
@@ -130,6 +199,18 @@ async function runPostSeedCommand(
   cutoffTimestampRaw: string | undefined,
   options: PostSeedCommandOptions = {},
 ) {
+  // Fail fast on invalid flag combinations before touching the cutoff or disk.
+  const remoteTarget = resolveRemoteTarget(mode, options);
+
+  // Confirm the destructive remote reset up front, before any cutoff detection or disk work.
+  if (remoteTarget) {
+    const confirmed = await confirmRemoteReset(remoteTarget, options);
+    if (!confirmed) {
+      console.log(info('Aborted. No changes made.'));
+      return;
+    }
+  }
+
   const resolvedCutoff = await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env });
   const resolvedCutoffRaw = resolvedCutoff.value;
   const cutoff = parseCutoffTimestamp(resolvedCutoffRaw);
@@ -282,6 +363,18 @@ async function runPostSeedCommand(
     );
   };
 
+  if (remoteTarget) {
+    console.log(info(`Target: ${remoteTarget.label}`));
+    if (remoteTarget.isDbUrl && resolvedCutoff.source === 'linked') {
+      console.log(
+        warn(
+          'Cutoff was auto-detected from the linked project, which may differ from the --db-url target. Pass an explicit cutoff if they are not the same database.',
+        ),
+      );
+    }
+    console.log('');
+  }
+
   console.log(info(`cutoff = ${resolvedCutoffRaw}${cutoffSourceSuffix}`));
   console.log('');
 
@@ -327,7 +420,10 @@ async function runPostSeedCommand(
   if (failedStep === 0) {
     try {
       console.log(info(`Running ${modeCommandLabel(mode)}...`));
-      await runCommand('supabase', mode === 'reset' ? ['db', 'reset'] : ['start']);
+      await runCommand(
+        'supabase',
+        mode === 'reset' ? ['db', 'reset', ...(remoteTarget?.args ?? [])] : ['start'],
+      );
       console.log(ok(`${modeCommandLabel(mode)} completed.`));
     } catch (error) {
       failedStep = 2;
@@ -393,7 +489,7 @@ async function runPostSeedCommand(
         }
       } else {
         console.log(info('Applying deferred migrations via supabase migration up...'));
-        await runCommand('supabase', ['migration', 'up']);
+        await runCommand('supabase', ['migration', 'up', ...(remoteTarget?.args ?? [])]);
       }
       newApplied = true;
     } catch (error) {

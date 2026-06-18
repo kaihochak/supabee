@@ -285,25 +285,42 @@ dbCommand
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
+  .option('--linked', 'Reset the linked Supabase project instead of the local database (destructive; prompts for confirmation)')
+  .option('--db-url <url>', 'Reset the database at this Postgres connection string instead of local (destructive; prompts for confirmation)')
+  .option('--yes', 'Skip the remote-reset confirmation prompt (for CI / non-interactive runs)')
   .addHelpText(
     'after',
     `
 What This Command Does
   1) Defers migrations with timestamps greater than <cutoffTimestamp>
-  2) Runs \`supabase db reset\`
+  2) Runs \`supabase db reset\` (add --linked/--db-url to target a remote database)
   3) Restores deferred migration files
   4) Reapplies deferred migrations
+
+Remote resets are destructive: they WIPE the target database and reseed it from
+local seed files. They prompt for confirmation; pass --yes to skip the prompt.
 
 Examples
   supabee db reset 20260309180959
   supabee db reset
   supabee db reset 20260309180959 --psql
+  supabee db reset --linked
+  supabee db reset 20260309180959 --linked --yes
 `,
   )
   .action(
     (
       cutoffTimestamp: string | undefined,
-      options: { psql?: boolean; strictMixed?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
+      options: {
+        psql?: boolean;
+        strictMixed?: boolean;
+        migrationsDir?: string;
+        tempDir?: string;
+        env?: string;
+        linked?: boolean;
+        dbUrl?: string;
+        yes?: boolean;
+      } = {},
     ) => runDbResetCommand(cutoffTimestamp, options),
   );
 

@@ -57,6 +57,10 @@ function printResumeHint(file: SeedFile, dbUrl: string, keepTriggers: boolean) {
  * pg_dump/pg_restore load a data dump. This stops application triggers (e.g. an
  * auth.users insert auto-creating a profiles row) from firing and makes seed
  * file ordering irrelevant. Pass keepTriggers to leave triggers/FK checks live.
+ *
+ * Both GUCs are applied as in-session `SET` statements inside each file's
+ * transaction rather than via PGOPTIONS, because Supabase's connection pooler
+ * strips connection startup options.
  */
 export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
   const dbUrl = resolveDbUrl(options.dbUrl);
@@ -65,10 +69,16 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     supabaseDir: options.supabaseDir,
   });
 
-  // Session GUCs applied to every file's psql connection.
-  const pgOptions = ['-c statement_timeout=0'];
-  if (!options.keepTriggers) pgOptions.push('-c session_replication_role=replica');
-  const seedEnv = { PGOPTIONS: pgOptions.join(' ') };
+  // Session GUCs are applied as in-session SET commands, NOT via PGOPTIONS /
+  // connection startup options — Supabase's connection pooler (supavisor/pgbouncer)
+  // strips startup options, so PGOPTIONS silently has no effect there. Sent as
+  // real SQL inside the same --single-transaction as the file, the SETs reach the
+  // backend and take effect for that file: statement_timeout=0 so long inserts are
+  // not cut off, and (by default) session_replication_role=replica so triggers and
+  // FK enforcement are disabled during the load, like pg_dump/pg_restore.
+  const sessionSetup = ['SET statement_timeout = 0;'];
+  if (!options.keepTriggers) sessionSetup.push('SET session_replication_role = replica;');
+  const sessionSetupSql = sessionSetup.join(' ');
 
   console.log(
     sectionWithNote(
@@ -117,11 +127,17 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     const file = queue[i];
     console.log(info(`[${i + 1}/${queue.length}] Seeding ${file.relPath}...`));
     try {
-      await runCommand(
-        'psql',
-        [dbUrl, '-X', '--single-transaction', '-v', 'ON_ERROR_STOP=1', '-f', file.absPath],
-        { env: seedEnv },
-      );
+      await runCommand('psql', [
+        dbUrl,
+        '-X',
+        '--single-transaction',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        sessionSetupSql,
+        '-f',
+        file.absPath,
+      ]);
     } catch (error) {
       console.log('');
       console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));

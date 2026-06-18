@@ -497,8 +497,9 @@ async function runPostSeedCommand(
       failureMessage = error instanceof Error ? error.message : String(error);
       // seed-remote already printed a `--from` resume command. After the data is
       // fully seeded, the deferred post-cutoff migrations still need applying.
-      // Use a placeholder for the URL so the password is not echoed into logs.
-      const migrationTarget = remoteTarget?.isDbUrl ? '--db-url <your-db-url> --yes' : '--linked --yes';
+      // Single-quote the URL so it copy-pastes cleanly (password specials, e.g. `!`).
+      const migrationTarget =
+        remoteTarget?.isDbUrl && options.dbUrl ? `--db-url '${options.dbUrl}' --yes` : '--linked --yes';
       console.log(
         warn(`Once seeding is complete, finish by applying the post-cutoff migrations: supabase migration up ${migrationTarget}`),
       );

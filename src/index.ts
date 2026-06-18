@@ -290,6 +290,7 @@ dbCommand
   .option('--db-url <url>', 'Reset the database at this Postgres connection string instead of local (destructive; prompts for confirmation)')
   .option('--yes', 'Skip the remote-reset confirmation prompt (for CI / non-interactive runs)')
   .option('--resumable-seed', 'Reset with --no-seed, then seed via the resumable direct-psql path (requires --db-url)')
+  .option('--keep-triggers', 'With --resumable-seed, keep triggers/FK checks active during seeding (default: disabled)')
   .addHelpText(
     'after',
     `
@@ -329,6 +330,7 @@ Examples
         dbUrl?: string;
         yes?: boolean;
         resumableSeed?: boolean;
+        keepTriggers?: boolean;
       } = {},
     ) => runDbResetCommand(cutoffTimestamp, options),
   );
@@ -339,6 +341,7 @@ dbCommand
   .option('--db-url <url>', 'Postgres connection string (falls back to SUPABASE_DB_URL / PGURI env)')
   .option('--from <file>', 'Resume from this seed file (inclusive); matches by file name or relative path')
   .option('--dry-run', 'Print the ordered seed queue and exit without seeding')
+  .option('--keep-triggers', 'Keep triggers/FK checks active during seeding (default: disabled, like a restore)')
   .addHelpText(
     'after',
     `
@@ -358,7 +361,9 @@ Examples
   supabee db seed-remote --db-url "postgresql://...:5432/postgres" --from 015_public_cities_69.sql
 `,
   )
-  .action((options: { dbUrl?: string; from?: string; dryRun?: boolean } = {}) => runSeedRemoteCommand(options));
+  .action((options: { dbUrl?: string; from?: string; dryRun?: boolean; keepTriggers?: boolean } = {}) =>
+    runSeedRemoteCommand(options),
+  );
 
 program
   .command('start [cutoffTimestamp]')

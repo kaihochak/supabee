@@ -9,6 +9,8 @@ export type SeedRemoteOptions = {
   from?: string;
   /** Print the ordered seed queue and exit without seeding. */
   dryRun?: boolean;
+  /** Keep triggers/FK checks active during seeding (default: disabled, like a restore). */
+  keepTriggers?: boolean;
   configPath?: string;
   supabaseDir?: string;
 };
@@ -46,6 +48,12 @@ function printResumeHint(file: SeedFile) {
  * and letting `--from` resume cleanly from the failed file with no duplicate
  * rows. `statement_timeout` is disabled for the session so long inserts are not
  * cut off by the server default.
+ *
+ * By default the session also runs with `session_replication_role = replica`,
+ * which disables user triggers and FK enforcement during the load — matching how
+ * pg_dump/pg_restore load a data dump. This stops application triggers (e.g. an
+ * auth.users insert auto-creating a profiles row) from firing and makes seed
+ * file ordering irrelevant. Pass keepTriggers to leave triggers/FK checks live.
  */
 export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
   const dbUrl = resolveDbUrl(options.dbUrl);
@@ -53,6 +61,11 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     configPath: options.configPath,
     supabaseDir: options.supabaseDir,
   });
+
+  // Session GUCs applied to every file's psql connection.
+  const pgOptions = ['-c statement_timeout=0'];
+  if (!options.keepTriggers) pgOptions.push('-c session_replication_role=replica');
+  const seedEnv = { PGOPTIONS: pgOptions.join(' ') };
 
   console.log(
     sectionWithNote(
@@ -80,6 +93,13 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
   }
 
   console.log(info(`Seed queue: ${queue.length} file(s) from ${patterns.length} pattern(s).`));
+  console.log(
+    info(
+      options.keepTriggers
+        ? 'Triggers/FK checks: ENABLED (--keep-triggers).'
+        : 'Triggers/FK checks: disabled for the load (session_replication_role=replica, like a restore).',
+    ),
+  );
   console.log('');
 
   if (options.dryRun) {
@@ -97,7 +117,7 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
       await runCommand(
         'psql',
         [dbUrl, '-X', '--single-transaction', '-v', 'ON_ERROR_STOP=1', '-f', file.absPath],
-        { env: { PGOPTIONS: '-c statement_timeout=0' } },
+        { env: seedEnv },
       );
     } catch (error) {
       console.log('');

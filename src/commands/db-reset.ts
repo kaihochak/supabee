@@ -24,6 +24,8 @@ export type PostSeedCommandOptions = {
   yes?: boolean;
   /** Reset with --no-seed, then seed via the resumable direct-psql path. Requires --db-url. */
   resumableSeed?: boolean;
+  /** Keep triggers/FK checks active during resumable seeding (default: disabled, like a restore). */
+  keepTriggers?: boolean;
 };
 
 type RemoteTarget = { args: string[]; label: string; isDbUrl: boolean };
@@ -488,7 +490,7 @@ async function runPostSeedCommand(
   if (failedStep === 0 && resumableSeed) {
     try {
       console.log('');
-      await runSeedRemoteCommand({ dbUrl: options.dbUrl });
+      await runSeedRemoteCommand({ dbUrl: options.dbUrl, keepTriggers: options.keepTriggers });
     } catch (error) {
       failedStep = 4;
       stepLabel = 'seed remote (psql)';

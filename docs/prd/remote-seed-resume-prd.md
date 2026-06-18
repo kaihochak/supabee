@@ -35,7 +35,11 @@ So the resumable path **separates the two**:
    - `--dry-run`: print the ordered queue and exit.
 3. Each file runs atomically: `psql --single-transaction -v ON_ERROR_STOP=1 -f <file>`, streamed from disk, with `statement_timeout = 0` (`PGOPTIONS=-c statement_timeout=0`).
    - *Change from MVP:* atomic-per-file replaces the planned "conflict-tolerant INSERT rewrite". Because a timeout rolls the whole file back, resume re-runs the file cleanly with no duplicate rows — no SQL rewriting required.
-4. On failure, prints a copy-paste `--from` resume command (with the connection string masked).
+4. By default the seeding session also sets `session_replication_role = replica`, disabling user triggers and FK enforcement during the load (added to `PGOPTIONS`). This matches `pg_dump`/`pg_restore` semantics and fixes two real failures seen on production-shaped seeds:
+   - application triggers firing during seeding (e.g. an `auth.users` insert auto-creating a `profiles` row that FK-references a not-yet-seeded table);
+   - cross-file FK ordering (a row referencing a table whose data is in a later seed file).
+   `--keep-triggers` opts out and leaves triggers/FK checks live. Requires a role permitted to set `session_replication_role` (Supabase's `postgres` role normally is).
+5. On failure, prints a copy-paste `--from` resume command (with the connection string masked).
 
 ### `supabee db reset --resumable-seed` (orchestrated path)
 Requires `--db-url` (a linked target cannot provide a psql connection string). Flow:

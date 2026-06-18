@@ -250,6 +250,7 @@ Seeds a remote database by running its split seed files **directly via `psql`**,
 
 - Reads the ordered file list from `[db.seed].sql_paths` in `supabase/config.toml` (the same list Supabase seeds from) and expands the globs in declared order, lexically sorted.
 - Runs each file atomically with `psql --single-transaction -v ON_ERROR_STOP=1`, streamed from disk (no whole-file buffering), with `statement_timeout = 0` for the session.
+- By default it seeds with `session_replication_role = replica`, which **disables triggers and FK enforcement during the load** — exactly how `pg_dump`/`pg_restore` load a data dump. This stops application triggers from firing (e.g. an `auth.users` insert auto-creating a `profiles` row) and makes cross-file ordering irrelevant (a row can reference a table seeded in a later file). Pass `--keep-triggers` to leave triggers/FK checks live.
 - On failure, the whole failing file rolls back — so the remote schema stays intact and only data is incomplete — and `supabee` prints a `--from` command to resume from that file. Already-seeded files are skipped, and the atomic re-run avoids duplicate rows.
 
 Connection comes from `--db-url`, or the `SUPABASE_DB_URL` / `PGURI` environment variable. Use the **direct (5432) connection, not the pooler (6543)**, so `statement_timeout` can be unset.
@@ -259,6 +260,7 @@ Connection comes from `--db-url`, or the `SUPABASE_DB_URL` / `PGURI` environment
 | `--db-url <url>` | Postgres connection string (falls back to `SUPABASE_DB_URL` / `PGURI`). |
 | `--from <file>` | Resume from this seed file (inclusive); matches by file name or relative path. |
 | `--dry-run` | Print the ordered seed queue and exit without seeding. |
+| `--keep-triggers` | Keep triggers/FK checks active during seeding (default: disabled, like a restore). |
 
 ```bash
 # preview the ordered queue

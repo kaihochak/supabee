@@ -16,11 +16,16 @@ type EffectiveTableLimits = {
   maxLinesPerFile: number;
   maxStatementsPerFile: number;
   maxRowsPerInsert: number;
+  maxBytesPerFile: number;
   skip: boolean;
 };
 
 function countLines(str: string): number {
   return str.split('\n').length;
+}
+
+function countBytes(str: string): number {
+  return Buffer.byteLength(str, 'utf8');
 }
 
 function countRowsInInsertStatement(statement: string): number {
@@ -66,7 +71,12 @@ function countRowsInInsertStatement(statement: string): number {
   return rowCount;
 }
 
-function breakDownInsertStatement(statement: string, tableName: string, maxRowsPerInsert: number): string[] {
+function breakDownInsertStatement(
+  statement: string,
+  tableName: string,
+  maxRowsPerInsert: number,
+  maxBytesPerFile: number,
+): string[] {
   if (!Number.isFinite(maxRowsPerInsert) || maxRowsPerInsert <= 0) return [statement];
 
   const lines = statement.split('\n');
@@ -120,13 +130,34 @@ function breakDownInsertStatement(statement: string, tableName: string, maxRowsP
 
   if (currentRow.trim()) valueRows.push(currentRow.trim());
 
-  if (valueRows.length <= maxRowsPerInsert) return [statement];
-
-  const chunks: string[] = [];
-  for (let i = 0; i < valueRows.length; i += maxRowsPerInsert) {
-    const chunk = valueRows.slice(i, i + maxRowsPerInsert);
-    chunks.push(`${header}\n\t${chunk.join(',\n\t')};`);
+  const hasBytesLimit = Number.isFinite(maxBytesPerFile) && maxBytesPerFile > 0;
+  if (valueRows.length <= maxRowsPerInsert && (!hasBytesLimit || countBytes(statement) <= maxBytesPerFile)) {
+    return [statement];
   }
+
+  const headerBytes = countBytes(header) + 2; // account for the trailing "\n\t"
+  const chunks: string[] = [];
+  let currentChunkRows: string[] = [];
+  let currentChunkBytes = headerBytes;
+
+  const flushChunk = () => {
+    if (currentChunkRows.length === 0) return;
+    chunks.push(`${header}\n\t${currentChunkRows.join(',\n\t')};`);
+    currentChunkRows = [];
+    currentChunkBytes = headerBytes;
+  };
+
+  for (const row of valueRows) {
+    const rowBytes = countBytes(row) + 2; // account for the ",\n\t" separator
+    const wouldExceedRows = currentChunkRows.length >= maxRowsPerInsert;
+    const wouldExceedBytes = hasBytesLimit && currentChunkRows.length > 0 && currentChunkBytes + rowBytes > maxBytesPerFile;
+
+    if (wouldExceedRows || wouldExceedBytes) flushChunk();
+
+    currentChunkRows.push(row);
+    currentChunkBytes += rowBytes;
+  }
+  flushChunk();
 
   console.log(info(`Broke down ${tableName} INSERT statement: ${valueRows.length} rows -> ${chunks.length} statements`));
   return chunks;
@@ -212,6 +243,7 @@ function getEffectiveTableLimits(table: string, config: DataConfig): EffectiveTa
     maxLinesPerFile: asPositiveNumber(tableRule.maxLinesPerFile, config.limits.maxLinesPerFile),
     maxStatementsPerFile: asPositiveNumber(tableRule.maxStatementsPerFile, config.limits.maxStatementsPerFile),
     maxRowsPerInsert: asPositiveNumber(tableRule.maxRowsPerInsert, config.limits.maxRowsPerInsert),
+    maxBytesPerFile: asPositiveNumber(tableRule.maxBytesPerFile, config.limits.maxBytesPerFile),
     skip: tableRule.skip === true,
   };
 }
@@ -229,8 +261,12 @@ function writeTableChunks(config: DataConfig, table: string, statements: string[
   const processedStatements: string[] = [];
   for (const statement of statements) {
     const rowCount = countRowsInInsertStatement(statement);
-    if (rowCount > tableLimits.maxRowsPerInsert) {
-      processedStatements.push(...breakDownInsertStatement(statement, table, tableLimits.maxRowsPerInsert));
+    const exceedsRows = rowCount > tableLimits.maxRowsPerInsert;
+    const exceedsBytes = countBytes(statement) > tableLimits.maxBytesPerFile;
+    if (exceedsRows || exceedsBytes) {
+      processedStatements.push(
+        ...breakDownInsertStatement(statement, table, tableLimits.maxRowsPerInsert, tableLimits.maxBytesPerFile),
+      );
     } else {
       processedStatements.push(statement);
     }
@@ -238,11 +274,13 @@ function writeTableChunks(config: DataConfig, table: string, statements: string[
 
   statements = processedStatements;
   const totalLines = statements.reduce((acc, stmt) => acc + countLines(stmt), 0);
+  const totalBytes = statements.reduce((acc, stmt) => acc + countBytes(stmt), 0);
   const totalStatements = statements.length;
 
   const needsSplitByLines = totalLines > tableLimits.maxLinesPerFile;
   const needsSplitByStatements = totalStatements > tableLimits.maxStatementsPerFile;
-  const needsSplitting = needsSplitByLines || needsSplitByStatements;
+  const needsSplitByBytes = totalBytes > tableLimits.maxBytesPerFile;
+  const needsSplitting = needsSplitByLines || needsSplitByStatements || needsSplitByBytes;
 
   if (!needsSplitting) {
     const filename = `${String(counter).padStart(3, '0')}_${cleanTableName}.sql`;
@@ -253,25 +291,30 @@ function writeTableChunks(config: DataConfig, table: string, statements: string[
 
   let currentChunk: string[] = [];
   let currentLines = 0;
+  let currentBytes = 0;
   let writtenFiles = 0;
 
   for (const statement of statements) {
     const statementLines = countLines(statement);
+    const statementBytes = countBytes(statement);
     const wouldExceedLines = currentLines + statementLines > tableLimits.maxLinesPerFile;
     const wouldExceedStatements = currentChunk.length >= tableLimits.maxStatementsPerFile;
+    const wouldExceedBytes = currentBytes + statementBytes > tableLimits.maxBytesPerFile;
 
-    if ((wouldExceedLines || wouldExceedStatements) && currentChunk.length > 0) {
+    if ((wouldExceedLines || wouldExceedStatements || wouldExceedBytes) && currentChunk.length > 0) {
       const filename = `${String(counter).padStart(3, '0')}_${cleanTableName}_${String(fileCounter + 1).padStart(2, '0')}.sql`;
       fs.writeFileSync(path.join(config.outputDir, filename), currentChunk.join('\n\n'));
       console.log(info(`Created ${filename} with ${currentChunk.length} statements (${currentLines} lines)`));
       currentChunk = [];
       currentLines = 0;
+      currentBytes = 0;
       fileCounter += 1;
       writtenFiles += 1;
     }
 
     currentChunk.push(statement);
     currentLines += statementLines;
+    currentBytes += statementBytes;
   }
 
   if (currentChunk.length > 0) {
@@ -432,6 +475,7 @@ export async function runDataCommand(args: string[]) {
           `maxLinesPerFile = ${config.limits.maxLinesPerFile}`,
           `maxStatementsPerFile = ${config.limits.maxStatementsPerFile}`,
           `maxRowsPerInsert = ${config.limits.maxRowsPerInsert}`,
+          `maxBytesPerFile = ${config.limits.maxBytesPerFile}`,
           `tableRules = ${Object.keys(config.tableRules || {}).length}`,
           `keepFiles = ${config.keepFiles.length}`,
         ];

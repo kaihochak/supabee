@@ -23,6 +23,7 @@ export type DataLimits = {
   maxLinesPerFile: number;
   maxStatementsPerFile: number;
   maxRowsPerInsert: number;
+  maxBytesPerFile: number;
 };
 
 export type DataConfig = {
@@ -154,6 +155,7 @@ function resolveDataConfig(toolConfig: ToolConfig, cliOptions: Partial<{ input: 
       maxLinesPerFile: asNumber(merged.maxLinesPerFile, DEFAULTS.data.maxLinesPerFile),
       maxStatementsPerFile: asNumber(merged.maxStatementsPerFile, DEFAULTS.data.maxStatementsPerFile),
       maxRowsPerInsert: asNumber(merged.maxRowsPerInsert, DEFAULTS.data.maxRowsPerInsert),
+      maxBytesPerFile: asNumber(merged.maxBytesPerFile, DEFAULTS.data.maxBytesPerFile),
     },
     tableRules: asTableRules(merged.tableRules),
     keepFiles: asStringArray(merged.keepFiles),

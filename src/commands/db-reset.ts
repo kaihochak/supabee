@@ -62,6 +62,23 @@ function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions
     : { args: ['--linked', '--yes'], label: 'linked remote project', isDbUrl: false };
 }
 
+function printLinkedSeedTimeoutHint(target: RemoteTarget) {
+  if (target.isDbUrl) return;
+
+  console.log(
+    warn(
+      'Large seed warning: --linked uses Supabase\'s built-in seed step. If that seed times out, it cannot resume cleanly.',
+    ),
+  );
+  console.log(info('For large seed sets, abort and use a direct database URL instead:'));
+  console.log(info('  supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --resumable-seed --yes'));
+  console.log(info('If the resumable seed stops, resume from the failed file:'));
+  console.log(info('  supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --from <failed-file>.sql'));
+  console.log(info('After standalone resume completes, finish post-seed migrations:'));
+  console.log(info('  supabase migration up --db-url "postgresql://...:5432/postgres?sslmode=require" --yes'));
+  console.log('');
+}
+
 /**
  * Confirm a destructive remote reset before any files are touched. Returns true
  * to proceed. `--yes` skips the prompt; a non-interactive shell without `--yes`
@@ -216,6 +233,7 @@ async function runPostSeedCommand(
 
   // Confirm the destructive remote reset up front, before any cutoff detection or disk work.
   if (remoteTarget) {
+    printLinkedSeedTimeoutHint(remoteTarget);
     const confirmed = await confirmRemoteReset(remoteTarget, options);
     if (!confirmed) {
       console.log(info('Aborted. No changes made.'));

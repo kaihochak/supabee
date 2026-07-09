@@ -5,6 +5,7 @@ export type DataTableRule = {
   maxLinesPerFile?: number;
   maxStatementsPerFile?: number;
   maxRowsPerInsert?: number;
+  maxBytesPerFile?: number;
   skip?: boolean;
 };
 
@@ -28,6 +29,7 @@ export type ToolConfig = {
     maxLinesPerFile?: number;
     maxStatementsPerFile?: number;
     maxRowsPerInsert?: number;
+    maxBytesPerFile?: number;
     tableRules?: Record<string, DataTableRule>;
     keepFiles?: string[];
     ignoreInReconstruct?: string[];
@@ -53,6 +55,7 @@ export const DEFAULTS = {
     maxLinesPerFile: 2000,
     maxStatementsPerFile: 20,
     maxRowsPerInsert: 200,
+    maxBytesPerFile: 2 * 1024 * 1024,
     tableRules: {},
     keepFiles: [],
     ignoreInReconstruct: [],

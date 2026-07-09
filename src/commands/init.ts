@@ -315,6 +315,7 @@ function ensureConfigFile() {
       maxLinesPerFile: 2000,
       maxStatementsPerFile: 20,
       maxRowsPerInsert: 200,
+      maxBytesPerFile: 2 * 1024 * 1024,
       tableRules: {},
       keepFiles: [],
       ignoreInReconstruct: [],

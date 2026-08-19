@@ -4,25 +4,28 @@
 [![npm version](https://img.shields.io/npm/v/supabee)](https://www.npmjs.com/package/supabee)
 [![license](https://img.shields.io/npm/l/supabee)](./LICENSE)
 
-Orchestrate local Supabase schema/data workflows: split giant SQL dumps into organized files, and apply post-seed migrations in a production-like order.
+Orchestrate Supabase schema, seed, migration, and reset workflows: split giant SQL dumps into organized files, replay post-seed migrations in production-like order, and reset linked remote databases with resumable seeding.
 
 ## Why?
 
-Supabase workflows often end up with two pain points:
+Supabase workflows often end up with three pain points:
 
 1. **One huge dump file** (`supabase db dump` / `--data-only`) that's painful to review, edit, or selectively seed from.
 2. **Local reset/start ordering** (migrations → seeds) that can diverge from production deploys (new migrations applied onto an already-populated database).
+3. **Remote seed timeouts** that can leave a reset incomplete and force a large dataset to restart from the beginning.
 
-`supabee` addresses both:
+`supabee` addresses all three:
 
 - **Split + validate dumps:** split schema and data dumps into focused files (by category / by table), then reconstruct and validate round-trip (PR-friendly diffs, easier navigation, and smaller merge conflicts).
 - **Defer post-seed migrations:** temporarily move newer migrations out of the way for `supabase db reset` / `supabase start`, then restore + reapply them after seeds load.
+- **Reset linked databases safely:** rebuild the schema without seeding, load seed files atomically through `psql`, and resume from the failed file instead of restarting the entire dataset.
 
 ### Use cases
 
 - **Seed data you can control:** keep per-table seed files and point `[db.seed].sql_paths` at only the ones you want.
 - **Schema as docs / source of truth:** keep schema readable in-repo (tables, functions, RLS, permissions, etc.).
 - **Mimic production locally:** catch “works on reset” vs “works on deploy” issues by applying post-seed migrations after data exists.
+- **Reset staging/throwaway remotes:** use the linked project with resumable file-by-file seeding and explicit destructive confirmation.
 - **One-liners with validation:** `sync schema` / `sync data` run dump → split → reconstruct → validate.
 
 ### Repo hygiene (recommended)
@@ -41,7 +44,7 @@ supabase/seeds/reconstructed-data.sql
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) >= 18
+- [Node.js](https://nodejs.org/) >= 20.11
 - [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) installed and authenticated
 
 ## Install
@@ -66,6 +69,13 @@ Project-local install (optional):
 
 ```bash
 npm install --save-dev supabee
+```
+
+Upgrade a global installation:
+
+```bash
+npm install -g supabee@latest
+supabee --version
 ```
 
 ## Setup
@@ -96,6 +106,7 @@ You'll be prompted for your project ref and database password. See the [Supabase
 supabee sync schema
 supabee sync data
 supabee db reset [cutoff_timestamp]
+supabee db reset --linked
 supabee start [cutoff_timestamp]
 ```
 
@@ -103,6 +114,7 @@ supabee start [cutoff_timestamp]
 
 - schema: `supabase db dump` -> split -> reconstruct -> validate
 - data: `supabase db dump --data-only` -> split -> reconstruct -> validate
+- linked reset: defer migrations -> reset without seed -> seed atomically via `psql` -> reapply migrations
 
 ### Selective seeding example (optional)
 
@@ -221,6 +233,12 @@ Before doing any work, a remote reset prompts for confirmation (`Reset <target>?
 
 For `--linked`, Supabee reads a port-5432 database URL from `SUPABASE_DB_URL` or `PGURI`, or securely prompts for it when running interactively. Use **Direct connection** when IPv6 is available or **Session pooler** on IPv4-only networks. Do not use **Transaction pooler** on port 6543. The URL is needed because resumable seeding runs `psql` directly and the Supabase CLI does not expose the linked project's database password. Non-interactive runs must provide one of those environment variables.
 
+Find the URL in **Supabase Dashboard → your project → Connect**:
+
+- **Direct connection (`:5432`)** for networks with IPv6.
+- **Session pooler (`:5432`)** for IPv4-only networks.
+- Never use **Transaction pooler (`:6543`)** for this workflow.
+
 When targeting a remote with `--linked`, the auto-detected cutoff is read from that same remote, so it equals the latest migration already applied there. If you want a different cutoff (or are using `--db-url` to a database other than the linked one), pass the cutoff explicitly.
 
 **Resumable remote datasets.** `--linked` uses this workflow automatically. With an explicit target, add `--resumable-seed` (requires `--db-url`). Supabee runs `supabase db reset --no-seed` (a fast, healthy schema rebuild), seeds the data file-by-file via direct `psql`, then reapplies the post-cutoff migrations. Because each seed file is atomic, a timeout rolls that file back and you resume from it with [`db seed-remote --from`](#db-seed-remote) instead of redoing the whole load. See [`db seed-remote`](#db-seed-remote) for the seeding mechanics.
@@ -237,12 +255,13 @@ supabee db reset 20260309180959 --psql
 # strict mixed policy
 supabee db reset --strict-mixed
 
-# remote reset (destructive; prompts for confirmation)
+# linked remote reset: resumable by default; prompts for URL + confirmation
 supabee db reset --linked
-supabee db reset 20260309180959 --linked --yes   # skip prompt (CI)
-supabee db reset --db-url "postgres://..." --yes
 
-# large remote datasets: no-seed reset + resumable direct-psql seeding + reapply
+# linked remote reset in CI (URL must come from the environment)
+SUPABASE_DB_URL="postgresql://...:5432/postgres?sslmode=require" supabee db reset --linked --yes
+
+# explicit remote target with resumable seeding
 supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --resumable-seed --yes
 ```
 
@@ -275,7 +294,7 @@ supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require"
 supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --from 015_public_cities_69.sql
 ```
 
-> Prefer the one-command [`db reset --resumable-seed`](#db-reset) for daily use — it orchestrates the no-seed reset, this seeding step, and the post-cutoff migration reapply together. Reach for `db seed-remote` standalone to resume a failed seed or to seed without a reset.
+> For linked projects, prefer [`db reset --linked`](#db-reset); resumable seeding is automatic. For an explicit target, use `db reset --db-url <url> --resumable-seed`. Reach for `db seed-remote` standalone to resume a failed seed or to seed without a reset.
 
 ### `start`
 
@@ -423,6 +442,7 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
     "maxLinesPerFile": 2000,
     "maxStatementsPerFile": 20,
     "maxRowsPerInsert": 200,
+    "maxBytesPerFile": 2097152,
     "tableRules": {},
     "keepFiles": [],
     "ignoreInReconstruct": []
@@ -447,6 +467,7 @@ Legacy support: `supabase-splitter.config.json` is still recognized, but `supabe
 | `data.maxLinesPerFile` | Max lines per split file (default: 2000) |
 | `data.maxStatementsPerFile` | Max INSERT statements per file (default: 20) |
 | `data.maxRowsPerInsert` | Max rows per INSERT statement (default: 200) |
+| `data.maxBytesPerFile` | Approximate maximum UTF-8 bytes per split file (default: 2 MiB) |
 | `data.tableRules` | Per-table overrides (see below) |
 | `data.keepFiles` | Files in the split dir to preserve across re-splits |
 | `data.ignoreInReconstruct` | Files to skip during reconstruction |
@@ -467,7 +488,8 @@ Override limits or skip specific tables:
       "public.cities": {
         "maxLinesPerFile": 800,
         "maxStatementsPerFile": 8,
-        "maxRowsPerInsert": 80
+        "maxRowsPerInsert": 80,
+        "maxBytesPerFile": 1048576
       },
       "public.audit_logs": {
         "skip": true
@@ -496,6 +518,11 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
 - `--migrations-dir <path>`: override migrations directory (default `supabase/migrations`)
 - `--temp-dir <path>`: override temporary defer directory (default `supabase/.tmp-migrations`)
 - `--env <name>`: use `postSeedCutoffByEnv.<name>` as fallback cutoff source
+- `--linked`: reset the linked remote project using resumable seeding; prompts for a port-5432 database URL and confirmation
+- `--db-url <url>`: target an explicit remote Postgres connection instead of the local database
+- `--yes`: skip the destructive remote-reset confirmation (non-interactive linked runs still require `SUPABASE_DB_URL` or `PGURI`)
+- `--resumable-seed`: reset with `--no-seed`, seed file-by-file through `psql`, then reapply deferred migrations; automatic with `--linked`
+- `--keep-triggers`: preserve triggers and FK enforcement during resumable seeding instead of using restore-style defaults
 
 `start` supports:
 
@@ -551,6 +578,7 @@ supabee data --help
 supabee start --help
 supabee db --help
 supabee db reset --help
+supabee db seed-remote --help
 supabee cutoff detect --help
 supabee migration audit --help
 supabee migration mark --help

@@ -42,7 +42,7 @@ So the resumable path **separates the two**:
 5. On failure, prints a copy-paste `--from` resume command (with the connection string masked).
 
 ### `supabee db reset --resumable-seed` / `--linked` (orchestrated path)
-An explicit target uses `--db-url <url> --resumable-seed`. A linked target enables resumable seeding automatically and obtains its direct port-5432 URL from `SUPABASE_DB_URL` / `PGURI`, or a hidden interactive prompt. Flow:
+An explicit target uses `--db-url <url> --resumable-seed`. A linked target enables resumable seeding automatically and obtains a port-5432 URL from `SUPABASE_DB_URL` / `PGURI`, or a hidden interactive prompt. The prompt directs IPv6 users to Direct connection and IPv4 users to Session pooler. Flow:
 1. Reuse existing cutoff resolution + defer/restore migration behavior.
 2. Run `supabase db reset --db-url <url> --no-seed --yes`.
 3. Run the `seed-remote` step.
@@ -55,9 +55,9 @@ An explicit target uses `--db-url <url> --resumable-seed`. A linked target enabl
 3. `supabee db reset [cutoffTimestamp] --linked [--yes]`
 
 Notes:
-- `--linked` prompts for the direct URL with hidden input and shows its hostname in the destructive confirmation. Non-interactive runs require `SUPABASE_DB_URL` or `PGURI`.
+- `--linked` prompts for the URL with hidden input and shows its hostname in the destructive confirmation. Non-interactive runs require `SUPABASE_DB_URL` or `PGURI`.
 - `--resumable-seed` without a remote target fails with an actionable message.
-- Use the direct (5432) connection, not the pooler (6543), so `statement_timeout` can be unset.
+- Use Direct connection (IPv6) or Session pooler (IPv4), both on port 5432. Transaction pooler on port 6543 is unsupported.
 - Existing local `db reset` behavior is unchanged by default.
 
 ## One-off vs resumable trade-off

@@ -63,7 +63,7 @@ function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions
     : { args: ['--linked', '--yes'], label: 'linked remote project', isDbUrl: false };
 }
 
-function validateDirectDbUrl(value: string): string {
+function validateRemoteDbUrl(value: string): string {
   let parsed: URL;
   try {
     parsed = new URL(value);
@@ -75,7 +75,7 @@ function validateDirectDbUrl(value: string): string {
     throw new Error('Invalid database URL. Expected a postgres:// or postgresql:// connection string.');
   }
   if (parsed.port && parsed.port !== '5432') {
-    throw new Error('Use the direct database connection on port 5432, not the transaction pooler on port 6543.');
+    throw new Error('Use Direct connection or Session pooler on port 5432, not Transaction pooler on port 6543.');
   }
   return value;
 }
@@ -103,22 +103,24 @@ async function promptForSecret(question: string): Promise<string> {
 
 async function resolveLinkedDbUrl(): Promise<string> {
   const fromEnv = process.env.SUPABASE_DB_URL?.trim() || process.env.PGURI?.trim();
-  if (fromEnv) return validateDirectDbUrl(fromEnv);
+  if (fromEnv) return validateRemoteDbUrl(fromEnv);
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error(
-      '`supabee db reset --linked` needs a direct database URL for resumable seeding.\n' +
-        'Set SUPABASE_DB_URL or PGURI to the direct port-5432 connection string.',
+      '`supabee db reset --linked` needs a port-5432 database URL for resumable seeding.\n' +
+        'Set SUPABASE_DB_URL or PGURI to a Direct connection (IPv6) or Session pooler (IPv4) URI.',
     );
   }
 
-  console.log(info('Direct database URL required.'));
-  console.log(info('Find it in Supabase Dashboard -> your project -> Connect -> Direct connection.'));
-  console.log(info('Copy the port-5432 URI and replace [YOUR-PASSWORD] with your database password.'));
+  console.log(info('Database URL required. Find it in Supabase Dashboard -> your project -> Connect.'));
+  console.log(info('  IPv6 available: use Direct connection (port 5432).'));
+  console.log(info('  IPv4 only:      use Session pooler (port 5432).'));
+  console.log(info('  Do not use Transaction pooler (port 6543).'));
+  console.log(info('Copy the URI and replace [YOUR-PASSWORD] with your database password.'));
   console.log(info('Input is hidden.'));
   const dbUrl = (await promptForSecret('Database URL: ')).trim();
   if (!dbUrl) throw new Error('Database URL is required for a linked remote reset.');
-  return validateDirectDbUrl(dbUrl);
+  return validateRemoteDbUrl(dbUrl);
 }
 
 /**

@@ -30,16 +30,17 @@ export type MigrationClassifierOptions = {
 const DEFAULT_DATA_MARKER = 'supabee:data-migration';
 const DEFAULT_SCHEMA_MARKER = 'supabee:schema-migration';
 
-const DDL_PATTERN =
-  /\b(create|alter|drop)\s+(table|type|schema|extension|index|view|materialized|function|policy|trigger|publication|subscription)\b/i;
+const DDL_OBJECT_PATTERN =
+  '(table|type|schema|extension|index|view|materialized|function|policy|trigger|publication|subscription)';
+const DDL_PATTERN = new RegExp(`\\b(?:create\\s+(?:or\\s+replace\\s+)?|alter\\s+|drop\\s+)${DDL_OBJECT_PATTERN}\\b`, 'i');
 const DML_PATTERN = /\b(insert\s+into|delete\s+from|merge\s+into|truncate\s+table)\b/i;
 const DDL_PATTERNS: Array<{ pattern: string; regex: RegExp }> = [
   { pattern: 'CREATE TABLE', regex: /\bcreate\s+table\b/gi },
   { pattern: 'ALTER TABLE', regex: /\balter\s+table\b/gi },
   { pattern: 'DROP TABLE', regex: /\bdrop\s+table\b/gi },
-  { pattern: 'CREATE VIEW', regex: /\bcreate\s+view\b/gi },
+  { pattern: 'CREATE VIEW', regex: /\bcreate\s+(?:or\s+replace\s+)?view\b/gi },
   { pattern: 'CREATE MATERIALIZED VIEW', regex: /\bcreate\s+materialized\s+view\b/gi },
-  { pattern: 'CREATE FUNCTION', regex: /\bcreate\s+function\b/gi },
+  { pattern: 'CREATE FUNCTION', regex: /\bcreate\s+(?:or\s+replace\s+)?function\b/gi },
   { pattern: 'ALTER FUNCTION', regex: /\balter\s+function\b/gi },
   { pattern: 'CREATE POLICY', regex: /\bcreate\s+policy\b/gi },
   { pattern: 'CREATE TRIGGER', regex: /\bcreate\s+trigger\b/gi },

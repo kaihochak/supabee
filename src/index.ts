@@ -305,8 +305,9 @@ What This Command Does
 Remote resets are destructive: they WIPE the target database and reseed it from
 local seed files. They prompt for confirmation; pass --yes to skip that prompt.
 
---linked uses resumable seeding automatically and securely prompts for the direct
-port-5432 database URL. Set SUPABASE_DB_URL or PGURI to avoid the URL prompt (CI).
+--linked uses resumable seeding automatically and securely prompts for a port-5432
+URL: Direct connection for IPv6 or Session pooler for IPv4. Never use port 6543.
+Set SUPABASE_DB_URL or PGURI to avoid the URL prompt (CI).
 
 Large remote datasets: the Supabase seed path can time out and leave the database
 unhealthy. --linked avoids that path automatically. For an explicit --db-url,
@@ -358,7 +359,8 @@ What This Command Does
 
 Because each file is atomic, a timeout rolls that file back — the remote schema
 stays healthy and resume re-runs the failed file with no duplicate rows. Use the
-direct (5432) connection, not the pooler (6543), so statement_timeout can be unset.
+Direct connection (IPv6) or Session pooler (IPv4), both on port 5432. Do not use
+Transaction pooler on port 6543.
 
 Examples
   supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require"

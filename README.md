@@ -219,7 +219,7 @@ By default `db reset` targets the local database. Pass `--linked` to reset the l
 
 Before doing any work, a remote reset prompts for confirmation (`Reset <target>? [y/N]`). Pass `--yes` to skip the prompt for CI / non-interactive runs; in a non-interactive shell without `--yes`, the command refuses rather than wiping a remote unattended. `--linked`/`--db-url` cannot be combined with each other or with `--psql`.
 
-For `--linked`, Supabee reads the direct port-5432 database URL from `SUPABASE_DB_URL` or `PGURI`, or securely prompts for it when running interactively. The URL is needed because resumable seeding runs `psql` directly and the Supabase CLI does not expose the linked project's database password. Non-interactive runs must provide one of those environment variables.
+For `--linked`, Supabee reads a port-5432 database URL from `SUPABASE_DB_URL` or `PGURI`, or securely prompts for it when running interactively. Use **Direct connection** when IPv6 is available or **Session pooler** on IPv4-only networks. Do not use **Transaction pooler** on port 6543. The URL is needed because resumable seeding runs `psql` directly and the Supabase CLI does not expose the linked project's database password. Non-interactive runs must provide one of those environment variables.
 
 When targeting a remote with `--linked`, the auto-detected cutoff is read from that same remote, so it equals the latest migration already applied there. If you want a different cutoff (or are using `--db-url` to a database other than the linked one), pass the cutoff explicitly.
 
@@ -255,7 +255,7 @@ Seeds a remote database by running its split seed files **directly via `psql`**,
 - By default it seeds with `session_replication_role = replica`, which **disables triggers and FK enforcement during the load** — exactly how `pg_dump`/`pg_restore` load a data dump. This stops application triggers from firing (e.g. an `auth.users` insert auto-creating a `profiles` row) and makes cross-file ordering irrelevant (a row can reference a table seeded in a later file). Pass `--keep-triggers` to leave triggers/FK checks live.
 - On failure, the whole failing file rolls back — so the remote schema stays intact and only data is incomplete — and `supabee` prints a `--from` command to resume from that file. Already-seeded files are skipped, and the atomic re-run avoids duplicate rows.
 
-Connection comes from `--db-url`, or the `SUPABASE_DB_URL` / `PGURI` environment variable. Use the **direct (5432) connection, not the pooler (6543)**, so `statement_timeout` can be unset.
+Connection comes from `--db-url`, or the `SUPABASE_DB_URL` / `PGURI` environment variable. Use **Direct connection** (IPv6) or **Session pooler** (IPv4), both on port 5432. Do not use **Transaction pooler** on port 6543.
 
 | Option | Description |
 | --- | --- |

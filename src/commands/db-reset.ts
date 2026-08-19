@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { Writable } from 'node:stream';
 import { stdin as input, stdout as output } from 'node:process';
 import { runCommand } from '../lib/subprocess.js';
 import { sectionWithNote, title, info, ok, fail, warn } from '../lib/ui.js';
@@ -22,7 +23,7 @@ export type PostSeedCommandOptions = {
   dbUrl?: string;
   /** Skip the interactive remote-reset confirmation prompt (for CI / non-interactive runs). */
   yes?: boolean;
-  /** Reset with --no-seed, then seed via the resumable direct-psql path. Requires --db-url. */
+  /** Reset with --no-seed, then seed via the resumable direct-psql path. Implicit with --linked. */
   resumableSeed?: boolean;
   /** Keep triggers/FK checks active during resumable seeding (default: disabled, like a restore). */
   keepTriggers?: boolean;
@@ -62,21 +63,62 @@ function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions
     : { args: ['--linked', '--yes'], label: 'linked remote project', isDbUrl: false };
 }
 
-function printLinkedSeedTimeoutHint(target: RemoteTarget) {
-  if (target.isDbUrl) return;
+function validateDirectDbUrl(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('Invalid database URL. Expected postgresql://user:password@host:5432/postgres?sslmode=require.');
+  }
 
-  console.log(
-    warn(
-      'Large seed warning: --linked uses Supabase\'s built-in seed step. If that seed times out, it cannot resume cleanly.',
-    ),
-  );
-  console.log(info('For large seed sets, abort and use a direct database URL instead:'));
-  console.log(info('  supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --resumable-seed --yes'));
-  console.log(info('If the resumable seed stops, resume from the failed file:'));
-  console.log(info('  supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --from <failed-file>.sql'));
-  console.log(info('After standalone resume completes, finish post-seed migrations:'));
-  console.log(info('  supabase migration up --db-url "postgresql://...:5432/postgres?sslmode=require" --yes'));
-  console.log('');
+  if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !parsed.hostname) {
+    throw new Error('Invalid database URL. Expected a postgres:// or postgresql:// connection string.');
+  }
+  if (parsed.port && parsed.port !== '5432') {
+    throw new Error('Use the direct database connection on port 5432, not the transaction pooler on port 6543.');
+  }
+  return value;
+}
+
+async function promptForSecret(question: string): Promise<string> {
+  let muted = false;
+  const silentOutput = new Writable({
+    write(chunk, _encoding, callback) {
+      if (!muted) output.write(chunk);
+      callback();
+    },
+  });
+  const rl = readline.createInterface({ input, output: silentOutput, terminal: true });
+  try {
+    const answerPromise = rl.question(question);
+    muted = true;
+    const answer = await answerPromise;
+    muted = false;
+    output.write('\n');
+    return answer;
+  } finally {
+    rl.close();
+  }
+}
+
+async function resolveLinkedDbUrl(): Promise<string> {
+  const fromEnv = process.env.SUPABASE_DB_URL?.trim() || process.env.PGURI?.trim();
+  if (fromEnv) return validateDirectDbUrl(fromEnv);
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error(
+      '`supabee db reset --linked` needs a direct database URL for resumable seeding.\n' +
+        'Set SUPABASE_DB_URL or PGURI to the direct port-5432 connection string.',
+    );
+  }
+
+  console.log(info('Direct database URL required.'));
+  console.log(info('Find it in Supabase Dashboard -> your project -> Connect -> Direct connection.'));
+  console.log(info('Copy the port-5432 URI and replace [YOUR-PASSWORD] with your database password.'));
+  console.log(info('Input is hidden.'));
+  const dbUrl = (await promptForSecret('Database URL: ')).trim();
+  if (!dbUrl) throw new Error('Database URL is required for a linked remote reset.');
+  return validateDirectDbUrl(dbUrl);
 }
 
 /**
@@ -222,18 +264,33 @@ async function runPostSeedCommand(
   options: PostSeedCommandOptions = {},
 ) {
   // Fail fast on invalid flag combinations before touching the cutoff or disk.
-  const remoteTarget = resolveRemoteTarget(mode, options);
+  let remoteTarget = resolveRemoteTarget(mode, options);
+  const linkedTarget = options.linked === true;
+  let effectiveDbUrl = options.dbUrl?.trim();
+  let resumableSeed = options.resumableSeed === true;
 
-  // The resumable seed path runs direct psql, which needs an explicit connection
-  // string — so it requires --db-url (a linked target hides the DB password).
-  const resumableSeed = options.resumableSeed === true;
-  if (resumableSeed && (!remoteTarget || !remoteTarget.isDbUrl)) {
-    throw new Error('--resumable-seed requires --db-url (the linked target cannot provide a psql connection string).');
+  if (resumableSeed && !remoteTarget) {
+    throw new Error('--resumable-seed requires a remote target (--linked or --db-url).');
   }
 
-  // Confirm the destructive remote reset up front, before any cutoff detection or disk work.
+  // Linked resets use the resumable path by default. Obtain the DB URL before
+  // confirmation so the actual hostname is shown to the user.
+  if (linkedTarget) {
+    effectiveDbUrl = await resolveLinkedDbUrl();
+    remoteTarget = {
+      args: ['--db-url', effectiveDbUrl, '--yes'],
+      label: `linked remote project at ${new URL(effectiveDbUrl).hostname} (resumable seed)`,
+      isDbUrl: true,
+    };
+    resumableSeed = true;
+  }
+
+  if (resumableSeed && !effectiveDbUrl) {
+    throw new Error('--resumable-seed requires --db-url, SUPABASE_DB_URL, or PGURI.');
+  }
+
+  // Confirm the destructive remote reset up front, before cutoff detection or disk work.
   if (remoteTarget) {
-    printLinkedSeedTimeoutHint(remoteTarget);
     const confirmed = await confirmRemoteReset(remoteTarget, options);
     if (!confirmed) {
       console.log(info('Aborted. No changes made.'));
@@ -395,7 +452,7 @@ async function runPostSeedCommand(
 
   if (remoteTarget) {
     console.log(info(`Target: ${remoteTarget.label}`));
-    if (remoteTarget.isDbUrl && resolvedCutoff.source === 'linked') {
+    if (remoteTarget.isDbUrl && !linkedTarget && resolvedCutoff.source === 'linked') {
       console.log(
         warn(
           'Cutoff was auto-detected from the linked project, which may differ from the --db-url target. Pass an explicit cutoff if they are not the same database.',
@@ -508,16 +565,15 @@ async function runPostSeedCommand(
   if (failedStep === 0 && resumableSeed) {
     try {
       console.log('');
-      await runSeedRemoteCommand({ dbUrl: options.dbUrl, keepTriggers: options.keepTriggers });
+      await runSeedRemoteCommand({ dbUrl: effectiveDbUrl, keepTriggers: options.keepTriggers });
     } catch (error) {
       failedStep = 4;
       stepLabel = 'seed remote (psql)';
       failureMessage = error instanceof Error ? error.message : String(error);
       // seed-remote already printed a `--from` resume command. After the data is
       // fully seeded, the deferred post-cutoff migrations still need applying.
-      // Single-quote the URL so it copy-pastes cleanly (password specials, e.g. `!`).
-      const migrationTarget =
-        remoteTarget?.isDbUrl && options.dbUrl ? `--db-url '${options.dbUrl}' --yes` : '--linked --yes';
+      // Do not print the credential-bearing URL back to the terminal.
+      const migrationTarget = linkedTarget ? '--linked --yes' : "--db-url '<direct-database-url>' --yes";
       console.log(
         warn(`Once seeding is complete, finish by applying the post-cutoff migrations: supabase migration up ${migrationTarget}`),
       );

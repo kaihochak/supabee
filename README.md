@@ -213,15 +213,17 @@ When linked lookup succeeds, `supabee` stores the value in `supabee.config.json`
 If linked lookup fails (for example in CI), it falls back to `postSeedCutoffByEnv.<env>` when `--env` is set, otherwise `postSeedCutoff`.
 If not linked, `supabee` runs `supabase link` and retries once.
 
-By default `db reset` targets the local database. Pass `--linked` to reset the linked Supabase project, or `--db-url <url>` to reset the database at an explicit Postgres connection string. Remote resets run the same defer/reset/replay flow but forward the target flag to `supabase db reset` and `supabase migration up`.
+By default `db reset` targets the local database. Pass `--linked` to reset the linked Supabase project with the resumable direct-`psql` seed workflow, or `--db-url <url>` to reset the database at an explicit Postgres connection string. Remote resets run the same defer/reset/replay flow.
 
 > **Warning:** A remote reset is destructive — it WIPES the target database's `public` schema and reseeds it from your local seed files. Use it only against throwaway/staging databases, not production.
 
 Before doing any work, a remote reset prompts for confirmation (`Reset <target>? [y/N]`). Pass `--yes` to skip the prompt for CI / non-interactive runs; in a non-interactive shell without `--yes`, the command refuses rather than wiping a remote unattended. `--linked`/`--db-url` cannot be combined with each other or with `--psql`.
 
+For `--linked`, Supabee reads the direct port-5432 database URL from `SUPABASE_DB_URL` or `PGURI`, or securely prompts for it when running interactively. The URL is needed because resumable seeding runs `psql` directly and the Supabase CLI does not expose the linked project's database password. Non-interactive runs must provide one of those environment variables.
+
 When targeting a remote with `--linked`, the auto-detected cutoff is read from that same remote, so it equals the latest migration already applied there. If you want a different cutoff (or are using `--db-url` to a database other than the linked one), pass the cutoff explicitly.
 
-**Large remote datasets (`--resumable-seed`).** Supabase's built-in seed step (used by a normal remote reset) runs the whole seed as one long operation that can hit the pooler's statement timeout. When it dies mid-seed it can leave the database unhealthy — and re-running starts seeding from scratch. With `--resumable-seed` (requires `--db-url`), `db reset` instead runs `supabase db reset --no-seed` (a fast, healthy schema rebuild), seeds the data file-by-file via direct `psql`, then reapplies the post-cutoff migrations. Because each seed file is atomic, a timeout rolls that file back and you resume from it with [`db seed-remote --from`](#db-seed-remote) instead of redoing the whole load. See [`db seed-remote`](#db-seed-remote) for the seeding mechanics.
+**Resumable remote datasets.** `--linked` uses this workflow automatically. With an explicit target, add `--resumable-seed` (requires `--db-url`). Supabee runs `supabase db reset --no-seed` (a fast, healthy schema rebuild), seeds the data file-by-file via direct `psql`, then reapplies the post-cutoff migrations. Because each seed file is atomic, a timeout rolls that file back and you resume from it with [`db seed-remote --from`](#db-seed-remote) instead of redoing the whole load. See [`db seed-remote`](#db-seed-remote) for the seeding mechanics.
 
 ```bash
 # default re-apply mode: supabase migration up

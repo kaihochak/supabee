@@ -33,14 +33,12 @@ function findResumeIndex(files: SeedFile[], from: string): number {
   );
 }
 
-function printResumeHint(file: SeedFile, dbUrl: string, keepTriggers: boolean) {
-  // Single-quote the URL so shell history expansion / special chars in the
-  // password (e.g. `!` in zsh) don't break a copy-paste of the resume command.
+function printResumeHint(file: SeedFile, keepTriggers: boolean) {
   const triggersFlag = keepTriggers ? ' --keep-triggers' : '';
   console.log('');
   console.log(warn('Seeding stopped — the remote schema is intact, only data is incomplete.'));
   console.log(info('Resume from the failed file (already-seeded files are skipped):'));
-  console.log(info(`  supabee db seed-remote --db-url '${dbUrl}' --from ${file.basename}${triggersFlag}`));
+  console.log(info(`  supabee db seed-remote --db-url '<direct-database-url>' --from ${file.basename}${triggersFlag}`));
 }
 
 /**
@@ -141,7 +139,7 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     } catch (error) {
       console.log('');
       console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));
-      printResumeHint(file, dbUrl, options.keepTriggers === true);
+      printResumeHint(file, options.keepTriggers === true);
       throw new Error(`Remote seeding failed at ${file.relPath}.`);
     }
   }

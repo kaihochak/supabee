@@ -1,6 +1,6 @@
 # Remote Seed Resume PRD
 
-> **Status: implemented.** Shipped as `supabee db seed-remote` and `supabee db reset --resumable-seed`. This document reflects the as-built design; where it differs from the original MVP proposal, the change is noted inline.
+> **Status: implemented.** Shipped as `supabee db seed-remote`, `supabee db reset --resumable-seed`, and the default remote workflow for `supabee db reset --linked`. This document reflects the as-built design; where it differs from the original MVP proposal, the change is noted inline.
 
 ## Overview
 Provide a reliable remote seeding workflow for Supabase projects where `supabase db reset` seeding can time out on large datasets. The feature adds a resumable direct-`psql` seeding path and orchestrates it with the existing post-seed migration logic.
@@ -41,8 +41,8 @@ So the resumable path **separates the two**:
    `--keep-triggers` opts out and leaves triggers/FK checks live. Requires a role permitted to set `session_replication_role` (Supabase's `postgres` role normally is).
 5. On failure, prints a copy-paste `--from` resume command (with the connection string masked).
 
-### `supabee db reset --resumable-seed` (orchestrated path)
-Requires `--db-url` (a linked target cannot provide a psql connection string). Flow:
+### `supabee db reset --resumable-seed` / `--linked` (orchestrated path)
+An explicit target uses `--db-url <url> --resumable-seed`. A linked target enables resumable seeding automatically and obtains its direct port-5432 URL from `SUPABASE_DB_URL` / `PGURI`, or a hidden interactive prompt. Flow:
 1. Reuse existing cutoff resolution + defer/restore migration behavior.
 2. Run `supabase db reset --db-url <url> --no-seed --yes`.
 3. Run the `seed-remote` step.
@@ -52,17 +52,19 @@ Requires `--db-url` (a linked target cannot provide a psql connection string). F
 ## CLI Interface
 1. `supabee db seed-remote [--db-url <url>] [--from <file>] [--dry-run]`
 2. `supabee db reset [cutoffTimestamp] --db-url <url> --resumable-seed [--yes]`
+3. `supabee db reset [cutoffTimestamp] --linked [--yes]`
 
 Notes:
-- `--resumable-seed` without `--db-url` fails with an actionable message.
+- `--linked` prompts for the direct URL with hidden input and shows its hostname in the destructive confirmation. Non-interactive runs require `SUPABASE_DB_URL` or `PGURI`.
+- `--resumable-seed` without a remote target fails with an actionable message.
 - Use the direct (5432) connection, not the pooler (6543), so `statement_timeout` can be unset.
 - Existing local `db reset` behavior is unchanged by default.
 
 ## One-off vs resumable trade-off
-The plain remote reset path (`db reset --linked` / `--db-url`, Supabase-driven seeding) remains available for **smaller datasets**. If it times out mid-seed, the database may be left unhealthy and the operator must reset the project / follow Supabase's recovery guidance. `--resumable-seed` is the safe path for large datasets; it does not attempt to rescue an already-broken one-off run.
+`db reset --linked` always uses the resumable path. The plain `db reset --db-url` path remains available for **smaller datasets** unless `--resumable-seed` is added. If a one-off seed times out, the database may be left unhealthy and the operator must reset the project / follow Supabase's recovery guidance. The resumable path does not attempt to rescue an already-broken one-off run.
 
 ## Acceptance Criteria (met)
-1. Large remote seeds no longer depend on the Supabase seed timeout path when `--resumable-seed` is used.
+1. Linked resets and explicit remote resets using `--resumable-seed` no longer depend on the Supabase seed timeout path.
 2. A failed seed file resumes with `--from` and completes without manual file edits or duplicate rows.
 3. Post-cutoff migration sequence remains: defer → reset (no-seed) → seed → reapply.
 4. Existing non-remote `db reset` workflows remain backward-compatible.
@@ -73,6 +75,7 @@ Verified end-to-end against a disposable Postgres (Docker) for both commands:
 - **atomic rollback**: a file failing mid-way leaves none of its rows committed (schema stays healthy);
 - full orchestration: `db reset --db-url --resumable-seed` runs no-seed reset → split-seed via psql → post-cutoff migration, in the correct order;
 - orchestrated seed failure stops before the migration reapply and prints resume + follow-up guidance.
+- linked URL input is hidden, malformed/non-5432 URLs are rejected, and cancellation occurs before database access.
 
 ## Known follow-ups
 - Redact connection-string passwords in subprocess **error** output (the failing `psql`/`supabase` command line is echoed on failure across all `--db-url` commands).

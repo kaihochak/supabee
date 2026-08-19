@@ -147,6 +147,7 @@ Main Workflows
   supabee sync schema
   supabee sync data
   supabee db reset [cutoff_timestamp]
+  supabee db reset --linked              Remote reset (resumable; prompts for DB URL)
   supabee start [cutoff_timestamp]
 
 Setup (once per project)
@@ -157,6 +158,7 @@ Examples
   supabee sync schema
   supabee sync data
   supabee db reset 20260309180959
+  supabee db reset --linked
   supabee start 20260309180959
 
 Manual Processing (existing dump files)
@@ -286,10 +288,10 @@ dbCommand
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
-  .option('--linked', 'Reset the linked Supabase project instead of the local database (destructive; prompts for confirmation)')
+  .option('--linked', 'Reset the linked project with resumable direct-psql seeding (prompts for confirmation and DB URL)')
   .option('--db-url <url>', 'Reset the database at this Postgres connection string instead of local (destructive; prompts for confirmation)')
   .option('--yes', 'Skip the remote-reset confirmation prompt (for CI / non-interactive runs)')
-  .option('--resumable-seed', 'Reset with --no-seed, then seed via the resumable direct-psql path (requires --db-url)')
+  .option('--resumable-seed', 'Use no-seed reset + resumable direct-psql seeding (automatic with --linked; otherwise requires --db-url)')
   .option('--keep-triggers', 'With --resumable-seed, keep triggers/FK checks active during seeding (default: disabled)')
   .addHelpText(
     'after',
@@ -301,11 +303,14 @@ What This Command Does
   4) Reapplies deferred migrations
 
 Remote resets are destructive: they WIPE the target database and reseed it from
-local seed files. They prompt for confirmation; pass --yes to skip the prompt.
+local seed files. They prompt for confirmation; pass --yes to skip that prompt.
+
+--linked uses resumable seeding automatically and securely prompts for the direct
+port-5432 database URL. Set SUPABASE_DB_URL or PGURI to avoid the URL prompt (CI).
 
 Large remote datasets: the Supabase seed path can time out and leave the database
-unhealthy. With --resumable-seed (requires --db-url), the reset runs --no-seed,
-then data is loaded file-by-file via direct psql so a timeout can be resumed with
+unhealthy. --linked avoids that path automatically. For an explicit --db-url,
+add --resumable-seed to load data file-by-file via direct psql and resume with
 \`supabee db seed-remote --from <file>\` instead of starting over.
 
 Examples

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - The linked-reset database URL prompt now directs IPv6 users to Direct connection and IPv4 users to Session pooler, while explicitly rejecting Transaction pooler port 6543.
+- Migration classification now recognizes `CREATE OR REPLACE VIEW` and `CREATE OR REPLACE FUNCTION` as schema DDL.
 
 ## [0.6.0] - 2026-08-19
 

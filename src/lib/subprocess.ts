@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 type RunCommandOptions = {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  sensitiveValues?: string[];
 };
 
 type RunCommandCaptureResult = {
@@ -12,8 +13,14 @@ type RunCommandCaptureResult = {
   stderr: string;
 };
 
-function formatCommand(command: string, args: string[]) {
-  return [command, ...args].join(' ');
+function redact(value: string, sensitiveValues: string[] = []): string {
+  return sensitiveValues
+    .filter((sensitiveValue) => sensitiveValue.length > 0)
+    .reduce((result, sensitiveValue) => result.split(sensitiveValue).join('[REDACTED]'), value);
+}
+
+function formatCommand(command: string, args: string[], sensitiveValues: string[] = []) {
+  return redact([command, ...args].join(' '), sensitiveValues);
 }
 
 function getCommandCandidates(command: string): string[] {
@@ -89,10 +96,19 @@ function getMergedEnv(env?: NodeJS.ProcessEnv) {
   return env ? { ...process.env, ...env } : process.env;
 }
 
-function waitForExit(command: string, args: string[], child: ReturnType<typeof spawn>): Promise<void> {
+function waitForExit(
+  command: string,
+  args: string[],
+  child: ReturnType<typeof spawn>,
+  sensitiveValues: string[] = [],
+): Promise<void> {
   return new Promise((resolve, reject) => {
     child.on('error', (error) => {
-      reject(new Error(`Failed to start command: ${formatCommand(command, args)}\n${error.message}`));
+      reject(
+        new Error(
+          `Failed to start command: ${formatCommand(command, args, sensitiveValues)}\n${redact(error.message, sensitiveValues)}`,
+        ),
+      );
     });
 
     child.on('close', (code) => {
@@ -101,7 +117,7 @@ function waitForExit(command: string, args: string[], child: ReturnType<typeof s
         return;
       }
 
-      reject(new Error(`Command failed (${code}): ${formatCommand(command, args)}`));
+      reject(new Error(`Command failed (${code}): ${formatCommand(command, args, sensitiveValues)}`));
     });
   });
 }
@@ -115,7 +131,7 @@ export async function runCommand(command: string, args: string[], options: RunCo
       stdio: 'inherit',
     });
 
-    await waitForExit(resolvedCommand, args, child);
+    await waitForExit(resolvedCommand, args, child, options.sensitiveValues);
   });
 }
 
@@ -139,7 +155,9 @@ export async function runCommandToFile(
 
     if (!child.stdout || !child.stderr) {
       outputStream.destroy();
-      throw new Error(`Unable to capture command output: ${formatCommand(resolvedCommand, args)}`);
+      throw new Error(
+        `Unable to capture command output: ${formatCommand(resolvedCommand, args, options.sensitiveValues)}`,
+      );
     }
 
     const streamDone = new Promise<void>((resolve, reject) => {
@@ -153,7 +171,7 @@ export async function runCommandToFile(
 
     child.stdout.pipe(outputStream);
 
-    await Promise.all([waitForExit(resolvedCommand, args, child), streamDone]);
+    await Promise.all([waitForExit(resolvedCommand, args, child, options.sensitiveValues), streamDone]);
   });
 }
 
@@ -173,7 +191,9 @@ export async function runCommandCapture(
     });
 
     if (!child.stdout || !child.stderr) {
-      throw new Error(`Unable to capture command output: ${formatCommand(resolvedCommand, args)}`);
+      throw new Error(
+        `Unable to capture command output: ${formatCommand(resolvedCommand, args, options.sensitiveValues)}`,
+      );
     }
 
     let stdout = '';
@@ -189,7 +209,11 @@ export async function runCommandCapture(
 
     await new Promise<void>((resolve, reject) => {
       child.on('error', (error) => {
-        reject(new Error(`Failed to start command: ${formatCommand(resolvedCommand, args)}\n${error.message}`));
+        reject(
+          new Error(
+            `Failed to start command: ${formatCommand(resolvedCommand, args, options.sensitiveValues)}\n${redact(error.message, options.sensitiveValues)}`,
+          ),
+        );
       });
 
       child.on('close', (code) => {
@@ -198,12 +222,13 @@ export async function runCommandCapture(
           return;
         }
 
-        const stderrMessage = stderr.trim();
+        const stderrMessage = redact(stderr.trim(), options.sensitiveValues);
+        const formattedCommand = formatCommand(resolvedCommand, args, options.sensitiveValues);
         reject(
           new Error(
             stderrMessage
-              ? `Command failed (${code}): ${formatCommand(resolvedCommand, args)}\n${stderrMessage}`
-              : `Command failed (${code}): ${formatCommand(resolvedCommand, args)}`,
+              ? `Command failed (${code}): ${formattedCommand}\n${stderrMessage}`
+              : `Command failed (${code}): ${formattedCommand}`,
           ),
         );
       });

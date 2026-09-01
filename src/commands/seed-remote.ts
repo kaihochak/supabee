@@ -3,13 +3,9 @@ import { sectionWithNote, title, info, ok, fail, warn } from '../lib/ui.js';
 import { discoverSeedFiles, type SeedFile } from '../lib/seed-files.js';
 
 export type SeedRemoteOptions = {
-  /** Postgres connection string. Falls back to SUPABASE_DB_URL / PGURI env. */
   dbUrl?: string;
-  /** Resume from this seed file (inclusive). Matches by file name or relative path. */
   from?: string;
-  /** Print the ordered seed queue and exit without seeding. */
   dryRun?: boolean;
-  /** Keep triggers/FK checks active during seeding (default: disabled, like a restore). */
   keepTriggers?: boolean;
   configPath?: string;
   supabaseDir?: string;
@@ -25,7 +21,6 @@ function resolveDbUrl(optionUrl?: string): string {
   );
 }
 
-/** Find the queue index to resume from. Matches file name, relative path, or suffix. */
 function findResumeIndex(files: SeedFile[], from: string): number {
   const needle = from.trim();
   return files.findIndex(
@@ -38,28 +33,14 @@ function printResumeHint(file: SeedFile, keepTriggers: boolean) {
   console.log('');
   console.log(warn('Seeding stopped — the remote schema is intact, only data is incomplete.'));
   console.log(info('Resume from the failed file (already-seeded files are skipped):'));
-  console.log(info(`  supabee db seed-remote --db-url '<direct-database-url>' --from ${file.basename}${triggersFlag}`));
+  console.log(
+    info(
+      `  SUPABASE_DB_URL='YOUR_DATABASE_URL' supabee db seed-remote --from ${file.basename}${triggersFlag}`,
+    ),
+  );
+  console.log(info('Replace YOUR_DATABASE_URL locally; supabee never prints stored credentials in resume hints.'));
 }
 
-/**
- * Seed a remote database by running its split seed files directly via psql.
- *
- * Each file runs atomically (`--single-transaction` + `ON_ERROR_STOP`), so a
- * timeout or error rolls that file back entirely — leaving the database healthy
- * and letting `--from` resume cleanly from the failed file with no duplicate
- * rows. `statement_timeout` is disabled for the session so long inserts are not
- * cut off by the server default.
- *
- * By default the session also runs with `session_replication_role = replica`,
- * which disables user triggers and FK enforcement during the load — matching how
- * pg_dump/pg_restore load a data dump. This stops application triggers (e.g. an
- * auth.users insert auto-creating a profiles row) from firing and makes seed
- * file ordering irrelevant. Pass keepTriggers to leave triggers/FK checks live.
- *
- * Both GUCs are applied as in-session `SET` statements inside each file's
- * transaction rather than via PGOPTIONS, because Supabase's connection pooler
- * strips connection startup options.
- */
 export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
   const dbUrl = resolveDbUrl(options.dbUrl);
   const { files, patterns } = discoverSeedFiles({
@@ -67,13 +48,6 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     supabaseDir: options.supabaseDir,
   });
 
-  // Session GUCs are applied as in-session SET commands, NOT via PGOPTIONS /
-  // connection startup options — Supabase's connection pooler (supavisor/pgbouncer)
-  // strips startup options, so PGOPTIONS silently has no effect there. Sent as
-  // real SQL inside the same --single-transaction as the file, the SETs reach the
-  // backend and take effect for that file: statement_timeout=0 so long inserts are
-  // not cut off, and (by default) session_replication_role=replica so triggers and
-  // FK enforcement are disabled during the load, like pg_dump/pg_restore.
   const sessionSetup = ['SET statement_timeout = 0;'];
   if (!options.keepTriggers) sessionSetup.push('SET session_replication_role = replica;');
   const sessionSetupSql = sessionSetup.join(' ');
@@ -126,7 +100,6 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     console.log(info(`[${i + 1}/${queue.length}] Seeding ${file.relPath}...`));
     try {
       await runCommand('psql', [
-        dbUrl,
         '-X',
         '--single-transaction',
         '-v',
@@ -135,7 +108,10 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
         sessionSetupSql,
         '-f',
         file.absPath,
-      ]);
+      ], {
+        env: { PGDATABASE: dbUrl },
+        sensitiveValues: [dbUrl],
+      });
     } catch (error) {
       console.log('');
       console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));

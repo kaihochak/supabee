@@ -39,7 +39,7 @@ So the resumable path **separates the two**:
    - application triggers firing during seeding (e.g. an `auth.users` insert auto-creating a `profiles` row that FK-references a not-yet-seeded table);
    - cross-file FK ordering (a row referencing a table whose data is in a later seed file).
    `--keep-triggers` opts out and leaves triggers/FK checks live. Requires a role permitted to set `session_replication_role` (Supabase's `postgres` role normally is).
-5. On failure, prints a copy-paste `--from` resume command (with the connection string masked).
+5. On failure, prints a credential-free `--from` resume command using a visible `YOUR_DATABASE_URL` placeholder.
 
 ### `supabee db reset --resumable-seed` / `--linked` (orchestrated path)
 An explicit target uses `--db-url <url> --resumable-seed`. A linked target enables resumable seeding automatically and obtains a port-5432 URL from `SUPABASE_DB_URL` / `PGURI`, or a hidden interactive prompt. The prompt directs IPv6 users to Direct connection and IPv4 users to Session pooler. Flow:
@@ -78,5 +78,5 @@ Verified end-to-end against a disposable Postgres (Docker) for both commands:
 - linked URL input is hidden, malformed/non-5432 URLs are rejected, and cancellation occurs before database access.
 
 ## Known follow-ups
-- Redact connection-string passwords in subprocess **error** output (the failing `psql`/`supabase` command line is echoed on failure across all `--db-url` commands).
+- [x] Redact connection strings in subprocess error output and keep direct `psql` connection URLs out of process arguments.
 - `--strict` / non-strict modes from the original MVP were not needed: seeding always stops on the first failing file (the only safe default for a resumable workflow).

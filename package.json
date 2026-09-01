@@ -40,7 +40,7 @@
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node dist/index.js --help",
+    "test": "npm run build && node --test tests/*.test.mjs && node dist/index.js --help",
     "pack:check": "npm run build && cross-env npm_config_cache=.npm-cache npm pack --dry-run"
   },
   "dependencies": {

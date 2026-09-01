@@ -17,28 +17,15 @@ export type PostSeedCommandOptions = {
   tempDir?: string;
   env?: string;
   strictMixed?: boolean;
-  /** Target the linked Supabase project instead of the local database (reset only). */
   linked?: boolean;
-  /** Target an explicit Postgres connection string instead of the local database (reset only). */
   dbUrl?: string;
-  /** Skip the interactive remote-reset confirmation prompt (for CI / non-interactive runs). */
   yes?: boolean;
-  /** Reset with --no-seed, then seed via the resumable direct-psql path. Implicit with --linked. */
   resumableSeed?: boolean;
-  /** Keep triggers/FK checks active during resumable seeding (default: disabled, like a restore). */
   keepTriggers?: boolean;
 };
 
 type RemoteTarget = { args: string[]; label: string; isDbUrl: boolean };
 
-/**
- * Resolve whether the run targets a remote database and, if so, the supabase CLI
- * flags to forward. Returns null for a local run. Throws on invalid flag combos.
- *
- * A remote reset is destructive: `supabase db reset --linked/--db-url` wipes the
- * target's public schema and reseeds it from local seed files. The destructive
- * confirmation is handled separately by confirmRemoteReset().
- */
 function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions): RemoteTarget | null {
   const linked = options.linked === true;
   const dbUrl = options.dbUrl;
@@ -54,10 +41,6 @@ function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions
     throw new Error('--psql applies migrations to the local database only; it cannot be combined with a remote target.');
   }
 
-  // Forward supabase's own global --yes so the underlying `supabase db reset` /
-  // `migration up` do not prompt again. supabee has already gated the destructive
-  // action via confirmRemoteReset(), so a second downstream prompt would be a
-  // redundant double-confirm interactively and a hang ("context canceled") in CI.
   return dbUrl
     ? { args: ['--db-url', dbUrl, '--yes'], label: 'remote (--db-url)', isDbUrl: true }
     : { args: ['--linked', '--yes'], label: 'linked remote project', isDbUrl: false };
@@ -123,11 +106,6 @@ async function resolveLinkedDbUrl(): Promise<string> {
   return validateRemoteDbUrl(dbUrl);
 }
 
-/**
- * Confirm a destructive remote reset before any files are touched. Returns true
- * to proceed. `--yes` skips the prompt; a non-interactive shell without `--yes`
- * refuses rather than wiping a remote database unattended.
- */
 async function confirmRemoteReset(target: RemoteTarget, options: PostSeedCommandOptions): Promise<boolean> {
   if (options.yes === true) return true;
 
@@ -207,9 +185,7 @@ async function removeIfEmpty(dirPath: string) {
     if (entries.length === 0) {
       await fs.promises.rmdir(dirPath);
     }
-  } catch {
-    // ignore cleanup errors
-  }
+  } catch {}
 }
 
 async function ensureDirectoryExists(dirPath: string) {
@@ -265,7 +241,6 @@ async function runPostSeedCommand(
   cutoffTimestampRaw: string | undefined,
   options: PostSeedCommandOptions = {},
 ) {
-  // Fail fast on invalid flag combinations before touching the cutoff or disk.
   let remoteTarget = resolveRemoteTarget(mode, options);
   const linkedTarget = options.linked === true;
   let effectiveDbUrl = options.dbUrl?.trim();
@@ -275,8 +250,6 @@ async function runPostSeedCommand(
     throw new Error('--resumable-seed requires a remote target (--linked or --db-url).');
   }
 
-  // Linked resets use the resumable path by default. Obtain the DB URL before
-  // confirmation so the actual hostname is shown to the user.
   if (linkedTarget) {
     effectiveDbUrl = await resolveLinkedDbUrl();
     remoteTarget = {
@@ -291,7 +264,6 @@ async function runPostSeedCommand(
     throw new Error('--resumable-seed requires --db-url, SUPABASE_DB_URL, or PGURI.');
   }
 
-  // Confirm the destructive remote reset up front, before cutoff detection or disk work.
   if (remoteTarget) {
     const confirmed = await confirmRemoteReset(remoteTarget, options);
     if (!confirmed) {
@@ -321,7 +293,6 @@ async function runPostSeedCommand(
     ),
   );
 
-  // ---- Classify migrations and resolve mixed files before touching anything on disk ----
   let classified = await classifyMigrations({ migrationsDir });
   let mixedFiles = classified.filter((migration) => migration.classification === 'mixed');
   let mixedAfterCutoff = mixedFiles.filter((migration) => migration.timestamp > cutoff);
@@ -333,10 +304,6 @@ async function runPostSeedCommand(
     );
   }
 
-  // Mixed migrations at/before cutoff are already applied on the linked remote, so they
-  // cannot be auto-split (renumbering applied history is blocked). They run verbatim during
-  // reset, and any embedded DML re-runs on top of the seed/dump — a common source of
-  // duplicate-key collisions. Warn by default (compatibility mode); --strict-mixed fails instead.
   const mixedAtOrBeforeCutoff = mixedFiles.filter((migration) => migration.timestamp <= cutoff);
   if (mixedAtOrBeforeCutoff.length > 0) {
     console.log(
@@ -392,7 +359,6 @@ async function runPostSeedCommand(
     console.log(ok('Auto-split completed for post-cutoff mixed migrations.'));
   }
 
-  // ---- Build the plan: which files are deferred (after cutoff) vs stubbed (historical data) ----
   const replayDeferred = classified.filter((migration) => migration.timestamp > cutoff);
   const replayDeferredNames = replayDeferred.map((migration) => migration.fileName);
   const historicalDataMigrations = classified.filter(
@@ -412,7 +378,6 @@ async function runPostSeedCommand(
         ? ' (from postSeedCutoff in config)'
         : '';
 
-  // ---- Failure tracking for the end-of-run summary ----
   let failedStep = 0;
   let stepLabel = '';
   let failureMessage = '';
@@ -467,7 +432,6 @@ async function runPostSeedCommand(
   console.log(info(`cutoff = ${resolvedCutoffRaw}${cutoffSourceSuffix}`));
   console.log('');
 
-  // ---- 1) Announce the plan, then defer post-cutoff migrations and stub historical data migrations ----
   if (replayDeferredNames.length > 0) {
     console.log(info(`Deferring ${replayDeferredNames.length} migrations after ${resolvedCutoffRaw}:`));
     for (const fileName of replayDeferredNames) {
@@ -505,15 +469,14 @@ async function runPostSeedCommand(
     failureMessage = error instanceof Error ? error.message : String(error);
   }
 
-  // ---- 2) Run the base command (reset/start) ----
   if (failedStep === 0) {
     try {
-      // In resumable-seed mode, reset with --no-seed so the schema is rebuilt
-      // cleanly and fast; the data is loaded afterwards by the direct-psql step.
       const resetArgs = ['db', 'reset', ...(remoteTarget?.args ?? [])];
       if (resumableSeed) resetArgs.push('--no-seed');
       console.log(info(`Running ${modeCommandLabel(mode)}${resumableSeed ? ' (--no-seed)' : ''}...`));
-      await runCommand('supabase', mode === 'reset' ? resetArgs : ['start']);
+      await runCommand('supabase', mode === 'reset' ? resetArgs : ['start'], {
+        sensitiveValues: effectiveDbUrl ? [effectiveDbUrl] : [],
+      });
       console.log(ok(`${modeCommandLabel(mode)} completed.`));
     } catch (error) {
       failedStep = 2;
@@ -522,7 +485,6 @@ async function runPostSeedCommand(
     }
   }
 
-  // ---- 3) Restore migration files (always run when we changed files on disk) ----
   if (movedReplayDeferred || stubbedHistorical) {
     const restoreErrors: string[] = [];
     if (movedReplayDeferred) {
@@ -563,7 +525,6 @@ async function runPostSeedCommand(
     }
   }
 
-  // ---- 4) Seed remote via resumable direct-psql path (only in --resumable-seed mode) ----
   if (failedStep === 0 && resumableSeed) {
     try {
       console.log('');
@@ -572,17 +533,13 @@ async function runPostSeedCommand(
       failedStep = 4;
       stepLabel = 'seed remote (psql)';
       failureMessage = error instanceof Error ? error.message : String(error);
-      // seed-remote already printed a `--from` resume command. After the data is
-      // fully seeded, the deferred post-cutoff migrations still need applying.
-      // Do not print the credential-bearing URL back to the terminal.
-      const migrationTarget = linkedTarget ? '--linked --yes' : "--db-url '<direct-database-url>' --yes";
+      const migrationTarget = linkedTarget ? '--linked --yes' : "--db-url 'YOUR_DATABASE_URL' --yes";
       console.log(
         warn(`Once seeding is complete, finish by applying the post-cutoff migrations: supabase migration up ${migrationTarget}`),
       );
     }
   }
 
-  // ---- 5) Reapply deferred migrations ----
   if (failedStep === 0 && replayDeferredNames.length > 0) {
     try {
       if (usePsql) {
@@ -598,7 +555,9 @@ async function runPostSeedCommand(
         }
       } else {
         console.log(info('Applying deferred migrations via supabase migration up...'));
-        await runCommand('supabase', ['migration', 'up', ...(remoteTarget?.args ?? [])]);
+        await runCommand('supabase', ['migration', 'up', ...(remoteTarget?.args ?? [])], {
+          sensitiveValues: effectiveDbUrl ? [effectiveDbUrl] : [],
+        });
       }
       newApplied = true;
     } catch (error) {

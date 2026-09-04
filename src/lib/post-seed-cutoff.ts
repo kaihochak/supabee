@@ -51,7 +51,7 @@ export function parseMigrationListOutput(output: string): MigrationListRow[] {
     if (line.includes('Local') && line.includes('Remote')) continue;
     if (line.match(/^-+\|-+\|-+$/)) continue;
 
-    const parts = line.split('|').map((part) => part.trim());
+    const parts = line.split('|').map((part) => part.trim().replace(/^`(.*)`$/, '$1').trim());
     if (parts.length < 3) continue;
     if (/^-+$/.test(parts[0]) && /^-+$/.test(parts[1])) continue;
 

@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.2] - 2026-09-04
 
 ### Fixed
 - Data splitting preserves Unicode line and paragraph separators inside SQL values instead of converting them to newlines that invalidate JSON.
+- Cutoff detection now accepts backtick-wrapped migration-list cells while retaining support for plain ASCII and Unicode tables.
 - Remote seed resume hints no longer print database credentials or use angle-bracket placeholders that disappear in HTML-rendered terminals.
 - Direct `psql` seeding keeps the database URL out of process arguments and redacts sensitive command diagnostics.
 

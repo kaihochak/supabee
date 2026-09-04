@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Data splitting preserves Unicode line and paragraph separators inside SQL values instead of converting them to newlines that invalidate JSON.
 - Remote seed resume hints no longer print database credentials or use angle-bracket placeholders that disappear in HTML-rendered terminals.
 - Direct `psql` seeding keeps the database URL out of process arguments and redacts sensitive command diagnostics.
 

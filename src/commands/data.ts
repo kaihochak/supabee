@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import readline from 'node:readline';
+import { readSqlLines } from '../lib/sql-lines.js';
 import { info, ok, error as errText } from '../lib/ui.js';
 import { resolveCommandConfig, type DataConfig } from '../lib/config.js';
 import { prepareSplitOutputDir } from '../lib/output.js';
@@ -135,7 +135,7 @@ function breakDownInsertStatement(
     return [statement];
   }
 
-  const headerBytes = countBytes(header) + 2; // account for the trailing "\n\t"
+  const headerBytes = countBytes(header) + 2;
   const chunks: string[] = [];
   let currentChunkRows: string[] = [];
   let currentChunkBytes = headerBytes;
@@ -148,7 +148,7 @@ function breakDownInsertStatement(
   };
 
   for (const row of valueRows) {
-    const rowBytes = countBytes(row) + 2; // account for the ",\n\t" separator
+    const rowBytes = countBytes(row) + 2;
     const wouldExceedRows = currentChunkRows.length >= maxRowsPerInsert;
     const wouldExceedBytes = hasBytesLimit && currentChunkRows.length > 0 && currentChunkBytes + rowBytes > maxBytesPerFile;
 
@@ -163,9 +163,6 @@ function breakDownInsertStatement(
   return chunks;
 }
 
-// Streams the file line-by-line instead of reading it into a single string.
-// Large seed dumps (>512 MiB) exceed V8's max string length, so a whole-file
-// read throws "Cannot create a string longer than 0x1fffffe8 characters".
 async function parseSeedFile(filePath: string): Promise<ParsedSeedContent> {
   const tableContent: Record<string, string[]> = {};
   const sequenceLines: string[] = [];
@@ -174,16 +171,11 @@ async function parseSeedFile(filePath: string): Promise<ParsedSeedContent> {
   let inInsertStatement = false;
   let lineCount = 0;
 
-  const rl = readline.createInterface({
-    input: fs.createReadStream(filePath, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  });
+  const lines = readSqlLines(fs.createReadStream(filePath, { encoding: 'utf8' }));
 
-  for await (const line of rl) {
+  for await (const line of lines) {
     lineCount += 1;
 
-    // Sequence detection mirrors the original whole-file filter: it runs on
-    // every line, independent of INSERT-statement parsing.
     if (line.includes('SEQUENCE SET') || (line.trim().startsWith('SELECT') && line.includes('setval'))) {
       sequenceLines.push(line);
     }
@@ -223,8 +215,6 @@ async function parseSeedFile(filePath: string): Promise<ParsedSeedContent> {
   return { tableContent, sequenceLines, lineCount };
 }
 
-// Promise wrapper around stream.write so we can serialize chunked writes and
-// surface backpressure/errors with await.
 function writeChunk(stream: fs.WriteStream, chunk: string): Promise<void> {
   return new Promise((resolve, reject) => {
     stream.write(chunk, (err) => (err ? reject(err) : resolve()));
@@ -376,8 +366,6 @@ async function reconstructData(config: DataConfig) {
     .filter((file) => !shouldIgnoreFile(file, config.ignoreInReconstruct))
     .sort((a, b) => a.localeCompare(b));
 
-  // Stream the joined output so a >512 MiB reconstruction never has to exist
-  // as a single in-memory string. Mirrors `${contents.join('\n\n')}\n`.
   const out = fs.createWriteStream(config.reconstructedFile, { encoding: 'utf8' });
   const finished = new Promise<void>((resolve, reject) => {
     out.on('error', reject);

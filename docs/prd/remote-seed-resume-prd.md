@@ -78,5 +78,6 @@ Verified end-to-end against a disposable Postgres (Docker) for both commands:
 - linked URL input is hidden, malformed/non-5432 URLs are rejected, and cancellation occurs before database access.
 
 ## Known follow-ups
+- [x] Preserve U+2028/U+2029 in generated seeds using LF-only streamed line reading; keep parsing and reconstruction streamed to avoid whole-dump string-size limits. Verify exact JSON preservation through split/reconstruct, LF/CRLF inputs, chunk boundaries, and read errors.
 - [x] Redact connection strings in subprocess error output and keep direct `psql` connection URLs out of process arguments.
 - `--strict` / non-strict modes from the original MVP were not needed: seeding always stops on the first failing file (the only safe default for a resumable workflow).

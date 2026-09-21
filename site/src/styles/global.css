@@ -1,0 +1,217 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* shadcn preset b7DMt8UO8: Rhea / Mist / Green / Inter / Small */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Semantic typography roles bundle size, line-height, tracking, and weight. */
+  --text-display: clamp(2.25rem, 5vw, 3.5rem);
+  --text-display--line-height: 1.02;
+  --text-display--letter-spacing: -0.035em;
+  --text-display--font-weight: 350;
+  --text-title: clamp(1.75rem, 3.5vw, 2.5rem);
+  --text-title--line-height: 1.12;
+  --text-title--letter-spacing: -0.025em;
+  --text-title--font-weight: 350;
+  --text-heading: 1.125rem;
+  --text-heading--line-height: 1.35;
+  --text-heading--letter-spacing: -0.01em;
+  --text-heading--font-weight: 350;
+  --text-body: 1rem;
+  --text-body--line-height: 1.75;
+  --text-body--letter-spacing: 0;
+  --text-body--font-weight: 300;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.6;
+  --text-small--letter-spacing: 0;
+  --text-small--font-weight: 300;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25;
+  --text-label--letter-spacing: -0.005em;
+  --text-label--font-weight: 350;
+  --text-overline: 0.6875rem;
+  --text-overline--line-height: 1.4;
+  --text-overline--letter-spacing: 0.14em;
+  --text-overline--font-weight: 350;
+  --text-code-ui: 0.8125rem;
+  --text-code-ui--line-height: 1.65;
+  --text-code-ui--letter-spacing: 0;
+  --text-code-ui--font-weight: 300;
+  --text-wordmark: 1.125rem;
+  --text-wordmark--line-height: 1.35;
+  --text-wordmark--letter-spacing: -0.01em;
+  --text-wordmark--font-weight: 500;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Compatibility aliases used by the existing Astro pages. */
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-code: var(--code);
+  --color-code-foreground: var(--code-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.148 0.004 228.8);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.148 0.004 228.8);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.148 0.004 228.8);
+  --primary: oklch(0.527 0.154 150.069);
+  --primary-foreground: oklch(0.982 0.018 155.826);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.963 0.002 197.1);
+  --muted-foreground: oklch(0.56 0.021 213.5);
+  --accent: oklch(0.963 0.002 197.1);
+  --accent-foreground: oklch(0.218 0.008 223.9);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.925 0.005 214.3);
+  --input: oklch(0.925 0.005 214.3);
+  --ring: oklch(0.723 0.014 214.4);
+  --chart-1: oklch(0.872 0.007 219.6);
+  --chart-2: oklch(0.56 0.021 213.5);
+  --chart-3: oklch(0.45 0.017 213.2);
+  --chart-4: oklch(0.378 0.015 216);
+  --chart-5: oklch(0.275 0.011 216.9);
+  --radius: 0.45rem;
+  --sidebar: oklch(0.987 0.002 197.1);
+  --sidebar-foreground: oklch(0.148 0.004 228.8);
+  --sidebar-primary: oklch(0.627 0.194 149.214);
+  --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
+  --sidebar-accent: oklch(0.963 0.002 197.1);
+  --sidebar-accent-foreground: oklch(0.218 0.008 223.9);
+  --sidebar-border: oklch(0.925 0.005 214.3);
+  --sidebar-ring: oklch(0.723 0.014 214.4);
+  --brand: var(--primary);
+  --brand-strong: var(--primary);
+  --code: oklch(0.148 0.004 228.8);
+  --code-foreground: oklch(0.987 0.002 197.1);
+  --success: var(--primary);
+  --warning: oklch(0.80 0.15 82);
+  --danger: var(--destructive);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.148 0.004 228.8);
+  --foreground: oklch(0.987 0.002 197.1);
+  --card: oklch(0.218 0.008 223.9);
+  --card-foreground: oklch(0.987 0.002 197.1);
+  --popover: oklch(0.218 0.008 223.9);
+  --popover-foreground: oklch(0.987 0.002 197.1);
+  --primary: oklch(0.448 0.119 151.328);
+  --primary-foreground: oklch(0.982 0.018 155.826);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.275 0.011 216.9);
+  --muted-foreground: oklch(0.723 0.014 214.4);
+  --accent: oklch(0.275 0.011 216.9);
+  --accent-foreground: oklch(0.987 0.002 197.1);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.56 0.021 213.5);
+  --chart-1: oklch(0.872 0.007 219.6);
+  --chart-2: oklch(0.56 0.021 213.5);
+  --chart-3: oklch(0.45 0.017 213.2);
+  --chart-4: oklch(0.378 0.015 216);
+  --chart-5: oklch(0.275 0.011 216.9);
+  --sidebar: oklch(0.218 0.008 223.9);
+  --sidebar-foreground: oklch(0.987 0.002 197.1);
+  --sidebar-primary: oklch(0.723 0.219 149.579);
+  --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
+  --sidebar-accent: oklch(0.275 0.011 216.9);
+  --sidebar-accent-foreground: oklch(0.987 0.002 197.1);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.56 0.021 213.5);
+  --brand: var(--primary);
+  --brand-strong: var(--sidebar-primary);
+  --code: oklch(0.105 0.004 228.8);
+  --code-foreground: oklch(0.987 0.002 197.1);
+  --success: var(--sidebar-primary);
+  --warning: oklch(0.82 0.15 82);
+  --danger: var(--destructive);
+}
+
+@layer base {
+  * { border-color: var(--border); }
+  html { scroll-behavior: smooth; }
+  body {
+    min-width: 320px;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: color-mix(in oklab, var(--brand) 28%, transparent); }
+}
+
+.prose-docs { color: var(--foreground); font-size: var(--text-body); font-weight: var(--text-body--font-weight); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
+.prose-docs h1 { margin-bottom: .75rem; font-size: var(--text-title); font-weight: var(--text-title--font-weight); letter-spacing: var(--text-title--letter-spacing); line-height: var(--text-title--line-height); }
+.prose-docs h2 { margin-top: 3rem; margin-bottom: 1rem; scroll-margin-top: 6rem; font-size: var(--text-heading); font-weight: var(--text-heading--font-weight); letter-spacing: var(--text-heading--letter-spacing); line-height: var(--text-heading--line-height); }
+.prose-docs h3 { margin-top: 2rem; margin-bottom: .75rem; scroll-margin-top: 6rem; font-size: var(--text-heading); font-weight: var(--text-heading--font-weight); letter-spacing: var(--text-heading--letter-spacing); line-height: var(--text-heading--line-height); }
+.prose-docs p, .prose-docs ul, .prose-docs ol { margin: 1rem 0; color: color-mix(in oklab, var(--foreground) 80%, var(--muted-foreground)); }
+.prose-docs ul, .prose-docs ol { padding-left: 1.4rem; }
+.prose-docs ul { list-style: disc; }
+.prose-docs ol { list-style: decimal; }
+.prose-docs li { margin: .4rem 0; padding-left: .25rem; }
+.prose-docs a { color: var(--brand-strong); text-decoration: underline; text-underline-offset: 3px; }
+.prose-docs strong { color: var(--foreground); font-weight: var(--text-label--font-weight); }
+.prose-docs code:not(pre code) { border: 1px solid var(--border); border-radius: .4rem; background: var(--muted); padding: .12rem .36rem; font-family: var(--font-mono); font-size: var(--text-code-ui); font-weight: var(--text-code-ui--font-weight); line-height: var(--text-code-ui--line-height); letter-spacing: var(--text-code-ui--letter-spacing); }
+.prose-docs pre { position: relative; overflow-x: auto; margin: 1.4rem 0; border: 1px solid color-mix(in oklab, var(--code-foreground) 12%, transparent); border-radius: var(--radius-xl); background: var(--code); color: var(--code-foreground); padding: 1.15rem 1.25rem; box-shadow: var(--shadow-lg); }
+.prose-docs pre code { color: inherit; font-family: var(--font-mono); font-size: var(--text-code-ui); font-weight: var(--text-code-ui--font-weight); line-height: var(--text-code-ui--line-height); letter-spacing: var(--text-code-ui--letter-spacing); }
+.prose-docs blockquote { margin: 1.5rem 0; border-left: 3px solid var(--brand); border-radius: 0 .75rem .75rem 0; background: var(--muted); padding: .85rem 1rem; }
+.prose-docs table { width: 100%; margin: 1.5rem 0; border-collapse: collapse; font-size: var(--text-small); font-weight: var(--text-small--font-weight); line-height: var(--text-small--line-height); letter-spacing: var(--text-small--letter-spacing); }
+.prose-docs th, .prose-docs td { border-bottom: 1px solid var(--border); padding: .7rem .75rem; text-align: left; }
+.prose-docs th { color: var(--foreground); font-weight: var(--text-label--font-weight); }
+
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--muted-foreground); border-radius: 999px; }

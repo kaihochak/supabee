@@ -1,0 +1,55 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+
+const { frontmatter } = Astro.props;
+const currentPath = Astro.url.pathname;
+const nav = [
+  { section: 'Start here', items: [
+    { href: '/docs/', label: 'Overview' },
+    { href: '/docs/getting-started/', label: 'Getting started' },
+  ]},
+  { section: 'Workflows', items: [
+    { href: '/docs/syncing/', label: 'Syncing schema & data' },
+    { href: '/docs/database-lifecycle/', label: 'Database lifecycle' },
+    { href: '/docs/migrations/', label: 'Migration management' },
+  ]},
+  { section: 'Reference', items: [
+    { href: '/docs/configuration/', label: 'Configuration' },
+    { href: '/docs/command-reference/', label: 'Command reference' },
+  ]},
+];
+---
+
+<BaseLayout title={`${frontmatter.title} — Supabee`} description={frontmatter.description} canonicalPath={currentPath}>
+  <Header compact />
+  <div class="pt-14">
+    <aside class="fixed bottom-0 left-0 top-14 z-40 hidden w-[18rem] overflow-y-auto border-r border-border bg-background p-5 md:block">
+      <nav aria-label="Documentation navigation" class="space-y-7">
+        {nav.map((group) => (
+          <section>
+            <h2 class="text-overline mb-2 px-2 uppercase text-muted-foreground">{group.section}</h2>
+            <ul class="space-y-1">
+              {group.items.map((item) => (
+                <li><a href={item.href} aria-current={currentPath === item.href ? 'page' : undefined} class:list={['text-label block rounded-lg px-3 py-2 transition', currentPath === item.href ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground']}>{item.label}</a></li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </nav>
+      <div class="mt-8 border-t border-border pt-5">
+        <a href="https://github.com/kaihochak/supabee" class="text-label block rounded-lg px-3 py-2 text-muted-foreground hover:bg-muted hover:text-foreground">GitHub repository ↗</a>
+      </div>
+    </aside>
+    <main class="min-h-[calc(100vh-3.5rem)] md:pl-[18rem]">
+      <article class="prose-docs mx-auto max-w-4xl px-6 py-14 sm:px-10 sm:py-20">
+        <div class="mb-10 border-b border-border pb-8">
+          {frontmatter.eyebrow && <p class="text-overline mb-3 uppercase text-brand-strong">{frontmatter.eyebrow}</p>}
+          <h1>{frontmatter.title}</h1>
+          <p class="text-body m-0 max-w-2xl text-muted-foreground">{frontmatter.description}</p>
+        </div>
+        <slot />
+      </article>
+    </main>
+  </div>
+</BaseLayout>

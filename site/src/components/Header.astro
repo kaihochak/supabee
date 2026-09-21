@@ -1,0 +1,21 @@
+---
+interface Props { compact?: boolean; }
+const { compact = false } = Astro.props;
+---
+
+<header class="fixed inset-x-0 top-0 z-50 h-14 border-b border-border bg-background/90 backdrop-blur-xl">
+  <div class:list={["mx-auto flex h-full items-center gap-3 px-4", compact ? "max-w-none" : "max-w-7xl"]}>
+    <a href="/" class="text-wordmark">Supabee.</a>
+    <nav class="ml-3 hidden items-center gap-5 sm:flex" aria-label="Primary navigation">
+      <a href="/docs/" class="text-label text-muted-foreground transition hover:text-foreground">Docs</a>
+      <a href="https://jacobchak.com/support/supabee" class="text-label text-muted-foreground transition hover:text-foreground">Support</a>
+    </nav>
+    <div class="flex-1"></div>
+    <button data-theme-toggle class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label="Toggle color theme">
+      <svg viewBox="0 0 24 24" class="size-3.5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+      <svg viewBox="0 0 24 24" class="hidden size-3.5 dark:block" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+    </button>
+    <a href="https://www.npmjs.com/package/supabee" class="text-label hidden text-muted-foreground transition hover:text-foreground sm:block">npm</a>
+    <a href="https://github.com/kaihochak/supabee" class="text-label hidden text-muted-foreground transition hover:text-foreground sm:block">GitHub</a>
+  </div>
+</header>

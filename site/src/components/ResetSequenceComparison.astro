@@ -1,0 +1,143 @@
+---
+import MigrationSequence from './MigrationSequence.astro';
+
+interface Props {
+  class?: string;
+  showTitles?: boolean;
+}
+
+const { class: className, showTitles = true } = Astro.props;
+---
+
+<div class:list={['reset-comparison', className]}>
+  <div class="comparison-phase conflict-phase">
+    <MigrationSequence variant="reset-conflict" id="reset-comparison-conflict" animate={false} showTitle={showTitles} />
+  </div>
+  <div class="comparison-phase corrected-phase">
+    <MigrationSequence variant="supabee-reset" id="reset-comparison-corrected" animate={false} showTitle={showTitles} />
+  </div>
+</div>
+
+<style>
+  .reset-comparison {
+    display: grid;
+  }
+
+  .comparison-phase {
+    grid-area: 1 / 1;
+  }
+
+  .corrected-phase {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .conflict-phase {
+      animation: show-conflict 10s ease-in-out infinite;
+    }
+
+    .corrected-phase {
+      animation: show-correction 10s ease-in-out infinite;
+    }
+
+    .comparison-phase :global(.sequence-layer),
+    .comparison-phase :global(.sequence-row),
+    .comparison-phase :global(.sequence-conflict) {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: loop-step 10s cubic-bezier(.22, 1, .36, 1) infinite both;
+    }
+
+    .comparison-phase :global(.sequence-connector) {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      animation: loop-connector 10s ease-out infinite both;
+    }
+
+    .conflict-phase :global(.sequence-layer),
+    .conflict-phase :global(.sequence-row),
+    .conflict-phase :global(.sequence-conflict),
+    .conflict-phase :global(.sequence-connector) {
+      animation-delay: var(--sequence-delay);
+    }
+
+    .corrected-phase :global(.sequence-layer),
+    .corrected-phase :global(.sequence-row),
+    .corrected-phase :global(.sequence-conflict),
+    .corrected-phase :global(.sequence-connector) {
+      animation-delay: calc(5s + var(--sequence-delay));
+    }
+
+    .conflict-phase :global(.sequence-conflict circle) {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: loop-conflict-pulse 10s ease-out var(--sequence-delay) infinite both;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .conflict-phase {
+      display: none;
+    }
+
+    .corrected-phase {
+      opacity: 1;
+    }
+  }
+
+  @keyframes show-conflict {
+    0%, 42% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    50%, 92% {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes show-correction {
+    0%, 42% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    50%, 92% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @keyframes loop-step {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    4%, 42% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    50%, 100% {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes loop-connector {
+    0% { stroke-dashoffset: 1; }
+    4%, 42% { stroke-dashoffset: 0; }
+    50%, 100% { stroke-dashoffset: 1; }
+  }
+
+  @keyframes loop-conflict-pulse {
+    0%, 4%, 12%, 100% { transform: scale(1); }
+    8% { transform: scale(1.35); }
+  }
+</style>

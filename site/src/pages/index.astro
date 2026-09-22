@@ -2,6 +2,7 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Header from "../components/Header.astro";
 import MigrationSequence from "../components/MigrationSequence.astro";
+import ResetSequenceComparison from "../components/ResetSequenceComparison.astro";
 import { Code } from "astro:components";
 
 const ordersSchema = `create table public.orders (
@@ -49,6 +50,7 @@ alter table public.orders add column status_id bigint not null default 1;`;
             >View on npm</a
           >
         </div>
+        <ResetSequenceComparison class="mx-auto mt-14 max-w-2xl text-left" showTitles={false} />
       </div>
     </section>
 

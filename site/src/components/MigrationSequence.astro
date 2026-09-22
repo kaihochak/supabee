@@ -3,6 +3,8 @@ interface Props {
   variant: 'db-push' | 'reset-conflict' | 'supabee-reset';
   class?: string;
   id?: string;
+  animate?: boolean;
+  showTitle?: boolean;
 }
 
 type RowKind = 'migration' | 'new-migration' | 'seeding' | 'failed-seeding';
@@ -14,7 +16,7 @@ interface Row {
   kind: RowKind;
 }
 
-const { variant, class: className, id = `migration-sequence-${variant}` } = Astro.props;
+const { variant, class: className, id = `migration-sequence-${variant}`, animate = true, showTitle = true } = Astro.props;
 
 const variants = {
   'db-push': {
@@ -112,7 +114,7 @@ const rowColors = {
 ---
 
 <figure class={className}>
-  <figcaption class="text-label mb-4 text-foreground">{config.title}</figcaption>
+  {showTitle && <figcaption class="text-label mb-4 text-center text-foreground">{config.title}</figcaption>}
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="960"
@@ -121,7 +123,7 @@ const rowColors = {
     role="img"
     aria-labelledby={`${titleId} ${descriptionId}`}
     class="h-auto w-full rounded-2xl"
-    data-migration-sequence
+    data-migration-sequence={animate ? '' : undefined}
   >
   <title id={titleId}>{config.title}</title>
   <desc id={descriptionId}>{config.description}</desc>

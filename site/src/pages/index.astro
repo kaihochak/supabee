@@ -70,16 +70,17 @@ alter table public.orders add column status_id bigint not null default 1;`;
           <pre class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 bg-code p-5 font-mono text-code-foreground shadow-lg"><code>Applying migration 20260310090000_replace_order_status.sql...
 Seeding data from supabase/seed.sql...
 ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</code></pre>
-          <MigrationSequence variant="conflict" class="my-8 h-auto w-full rounded-2xl" />
+          <MigrationSequence variant="reset-conflict" class="my-8 h-auto w-full rounded-2xl" />
 
           <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">Inconsistent with <code class="text-code-ui font-mono">db push</code></h3>
           <p class="text-body my-4 text-muted-foreground">This does not happen in the same order when you deploy. <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db push</code> and <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase migration up</code> apply the new migration to a database that already contains its data.</p>
           <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db push</code> runs against rows that already exist, while <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db reset</code> expects the seed to fit a schema that changed after the data was dumped.</p>
-          <MigrationSequence variant="deployment" class="my-8 h-auto w-full rounded-2xl" />
+          <MigrationSequence variant="db-push" class="my-8 h-auto w-full rounded-2xl" />
 
           <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">The solution</h3>
           <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabee db reset</code> holds back migrations that have not been deployed and loads the seed first. Once the database looks like production, it restores and applies the new migrations on top.</p>
           <p class="text-body my-4 text-muted-foreground">That mirrors how migration scripts reach the production database, so one run checks both that the local reset works and that the new migrations can be deployed.</p>
+          <MigrationSequence variant="supabee-reset" class="my-8 h-auto w-full rounded-2xl" />
 
           <h2 class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"><a href="/docs/syncing/#sync-data" class="text-foreground no-underline transition hover:text-brand-strong">supabee sync data</a></h2>
           <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db dump --data-only</code> puts every table into one seed file. Once a project contains thousands of rows, any table change becomes a diff inside the same enormous file, and reproducing a bug starts with finding the right rows inside it.</p>

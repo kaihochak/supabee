@@ -1,6 +1,6 @@
 ---
 interface Props {
-  variant: 'deployment' | 'conflict';
+  variant: 'db-push' | 'reset-conflict' | 'supabee-reset';
   class?: string;
   id?: string;
 }
@@ -17,9 +17,11 @@ interface Row {
 const { variant, class: className, id = `migration-sequence-${variant}` } = Astro.props;
 
 const variants = {
-  deployment: {
+  'db-push': {
+    title: 'Supabase db push',
     height: 670,
     group: { y: 28, height: 486, label: 'Live database', labelWidth: 154 },
+    dataGroup: null,
     rows: [
       { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
       { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
@@ -30,18 +32,35 @@ const variants = {
     conflictY: null,
     description: 'Migration 1, Migration 2, Migration 3, and seeding form the live database before New Migration 4 runs.',
   },
-  conflict: {
-    height: 758,
-    group: { y: 28, height: 374, label: 'Production database', labelWidth: 184 },
+  'reset-conflict': {
+    title: 'Supabase db reset conflict',
+    height: 822,
+    group: { y: 28, height: 374, label: 'Schema dump', labelWidth: 138 },
+    dataGroup: { y: 640, height: 150, label: 'Data dump', labelWidth: 124 },
     rows: [
       { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
       { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
       { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
       { y: 430, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
-      { y: 642, label: 'Seeding', marker: '+', kind: 'failed-seeding' },
+      { y: 674, label: 'Seeding', marker: '+', kind: 'failed-seeding' },
     ] satisfies Row[],
-    conflictY: 578,
-    description: 'Migrations 1 through 4 run before seeding, so the seed conflicts with the schema changed by Migration 4.',
+    conflictY: 594,
+    description: 'The schema and data dumps reflect Migrations 1 through 3. Migration 4 then runs before seeding, so the data dump conflicts with the changed schema.',
+  },
+  'supabee-reset': {
+    title: 'Supabee db reset',
+    height: 746,
+    group: { y: 28, height: 374, label: 'Schema dump', labelWidth: 138 },
+    dataGroup: { y: 436, height: 150, label: 'Data dump', labelWidth: 124 },
+    rows: [
+      { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
+      { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
+      { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
+      { y: 470, label: 'Seeding', marker: '+', kind: 'seeding' },
+      { y: 630, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
+    ] satisfies Row[],
+    conflictY: null,
+    description: 'Supabee restores the schema dump through Migration 3, loads the data dump as seed data, and then applies New Migration 4.',
   },
 } as const;
 
@@ -49,6 +68,7 @@ const config = variants[variant];
 const titleId = `${id}-title`;
 const descriptionId = `${id}-description`;
 const groupLabelX = 166 + config.group.labelWidth / 2;
+const dataGroupLabelX = config.dataGroup ? 166 + config.dataGroup.labelWidth / 2 : 0;
 
 const rowColors = {
   migration: {
@@ -95,12 +115,20 @@ const rowColors = {
   aria-labelledby={`${titleId} ${descriptionId}`}
   class={className}
 >
-  <title id={titleId}>Database migration and seeding sequence</title>
+  <title id={titleId}>{config.title}</title>
   <desc id={descriptionId}>{config.description}</desc>
 
   <rect x="140" y={config.group.y} width="680" height={config.group.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
   <rect x="166" y="15" width={config.group.labelWidth} height="32" rx="16" fill="#318153" />
   <text x={groupLabelX} y="36" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.group.label}</text>
+
+  {config.dataGroup && (
+    <g>
+      <rect x="140" y={config.dataGroup.y} width="680" height={config.dataGroup.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
+      <rect x="166" y={config.dataGroup.y - 13} width={config.dataGroup.labelWidth} height="32" rx="16" fill="#318153" />
+      <text x={dataGroupLabelX} y={config.dataGroup.y + 8} text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.dataGroup.label}</text>
+    </g>
+  )}
 
   <g fill="none" stroke="#dce4e0" stroke-width="2">
     {config.rows.slice(0, -1).map((row, index) => (

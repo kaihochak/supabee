@@ -1,0 +1,133 @@
+---
+interface Props {
+  variant: 'deployment' | 'conflict';
+  class?: string;
+  id?: string;
+}
+
+type RowKind = 'migration' | 'new-migration' | 'seeding' | 'failed-seeding';
+
+interface Row {
+  y: number;
+  label: string;
+  marker: string;
+  kind: RowKind;
+}
+
+const { variant, class: className, id = `migration-sequence-${variant}` } = Astro.props;
+
+const variants = {
+  deployment: {
+    height: 670,
+    group: { y: 28, height: 486, label: 'Live database', labelWidth: 154 },
+    rows: [
+      { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
+      { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
+      { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
+      { y: 398, label: 'Seeding', marker: '+', kind: 'seeding' },
+      { y: 554, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
+    ] satisfies Row[],
+    conflictY: null,
+    description: 'Migration 1, Migration 2, Migration 3, and seeding form the live database before New Migration 4 runs.',
+  },
+  conflict: {
+    height: 758,
+    group: { y: 28, height: 374, label: 'Production database', labelWidth: 184 },
+    rows: [
+      { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
+      { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
+      { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
+      { y: 430, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
+      { y: 642, label: 'Seeding', marker: '+', kind: 'failed-seeding' },
+    ] satisfies Row[],
+    conflictY: 578,
+    description: 'Migrations 1 through 4 run before seeding, so the seed conflicts with the schema changed by Migration 4.',
+  },
+} as const;
+
+const config = variants[variant];
+const titleId = `${id}-title`;
+const descriptionId = `${id}-description`;
+const groupLabelX = 166 + config.group.labelWidth / 2;
+
+const rowColors = {
+  migration: {
+    fill: '#ffffff',
+    stroke: '#dce4e0',
+    markerFill: '#eef2f0',
+    markerText: '#6d7974',
+    text: '#202623',
+    weight: 400,
+  },
+  'new-migration': {
+    fill: '#ffffff',
+    stroke: '#318153',
+    markerFill: '#318153',
+    markerText: '#ffffff',
+    text: '#202623',
+    weight: 500,
+  },
+  seeding: {
+    fill: '#edf8f1',
+    stroke: '#b8ddc5',
+    markerFill: '#d9eee1',
+    markerText: '#318153',
+    text: '#245f3d',
+    weight: 400,
+  },
+  'failed-seeding': {
+    fill: '#fff1f0',
+    stroke: '#e6aaa6',
+    markerFill: '#f5d1ce',
+    markerText: '#b93630',
+    text: '#912e29',
+    weight: 500,
+  },
+} as const;
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="960"
+  height={config.height}
+  viewBox={`0 0 960 ${config.height}`}
+  role="img"
+  aria-labelledby={`${titleId} ${descriptionId}`}
+  class={className}
+>
+  <title id={titleId}>Database migration and seeding sequence</title>
+  <desc id={descriptionId}>{config.description}</desc>
+
+  <rect x="140" y={config.group.y} width="680" height={config.group.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
+  <rect x="166" y="15" width={config.group.labelWidth} height="32" rx="16" fill="#318153" />
+  <text x={groupLabelX} y="36" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.group.label}</text>
+
+  <g fill="none" stroke="#dce4e0" stroke-width="2">
+    {config.rows.slice(0, -1).map((row, index) => (
+      <path d={`M480 ${row.y + 84}V${config.rows[index + 1].y}`} />
+    ))}
+  </g>
+
+  {config.conflictY && (
+    <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+      <circle cx="480" cy={config.conflictY} r="14" fill="#dc4c43" />
+      <text x="480" y={config.conflictY + 6} text-anchor="middle" font-size="17" font-weight="600" fill="#ffffff">!</text>
+      <text x="506" y={config.conflictY + 6} font-size="15" font-weight="500" fill="#b93630">Conflict</text>
+    </g>
+  )}
+
+  <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+    {config.rows.map((row) => {
+      const colors = rowColors[row.kind];
+      const markerY = row.y + 42;
+      return (
+        <g>
+          <rect x="180" y={row.y} width="600" height="84" rx="14" fill={colors.fill} stroke={colors.stroke} stroke-width="2" />
+          <circle cx="228" cy={markerY} r="17" fill={colors.markerFill} />
+          <text x="228" y={markerY + 6} text-anchor="middle" font-size="16" font-weight="500" fill={colors.markerText}>{row.marker}</text>
+          <text x="266" y={row.y + 50} font-size="24" font-weight={colors.weight} fill={colors.text}>{row.label}</text>
+        </g>
+      );
+    })}
+  </g>
+</svg>

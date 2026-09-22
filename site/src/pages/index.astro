@@ -1,26 +1,38 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
+import MigrationSequence from '../components/MigrationSequence.astro';
+import { Code } from 'astro:components';
+
+const ordersSchema = `create table public.orders (
+  id          uuid primary key default gen_random_uuid(),
+  customer_id uuid not null,
+  total       numeric(10, 2) not null,
+  status      text not null default 'pending'
+);`;
+
+const replaceOrderStatus = `alter table public.orders drop column status;
+alter table public.orders add column status_id bigint not null default 1;`;
 ---
 
 <BaseLayout>
   <Header />
   <main>
-    <section class="relative overflow-hidden border-b border-border px-5 pb-24 pt-36 sm:pt-44">
-      <div class="mx-auto max-w-5xl text-center">
+    <section class="relative overflow-hidden px-5 pb-24 pt-36 sm:pt-44">
+      <div class="mx-auto max-w-3xl text-center">
         <div class="text-small mb-6 inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-brand-strong">
           <span class="size-1.5 rounded-full bg-brand"></span>
           Built for reliable Supabase workflows
         </div>
-        <h1 class="text-display mx-auto max-w-4xl text-balance">
-          Keep schema, seed data, and migrations in sync.
+        <h1 class="text-display mx-auto text-balance">
+          More control over Supabase resets and dumps.
         </h1>
         <p class="text-body mx-auto mt-7 max-w-2xl text-balance text-muted-foreground">
           Supabee turns linked database dumps into reviewable files and replays migrations around your seed data in the right order.
         </p>
         <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <a href="/docs/getting-started/" class="text-label inline-flex h-11 items-center justify-center rounded-xl bg-foreground px-5 text-background shadow-lg transition hover:-translate-y-0.5">Get started</a>
-          <a href="https://github.com/kaihochak/supabee" class="text-label inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-5 transition hover:-translate-y-0.5 hover:border-brand/50">View on GitHub</a>
+          <a href="https://www.npmjs.com/package/supabee" class="text-label inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-5 transition hover:-translate-y-0.5 hover:border-brand/50">View on npm</a>
         </div>
         <div class="mx-auto mt-10 flex max-w-xl items-center gap-3 rounded-2xl border border-border bg-card/90 p-2 pl-5 text-left shadow-lg backdrop-blur">
           <span class="select-none font-mono text-brand">$</span>
@@ -31,36 +43,58 @@ import Header from '../components/Header.astro';
     </section>
 
     <section class="px-5 py-24">
-      <div class="mx-auto max-w-6xl">
-        <div class="mb-12 max-w-2xl">
-          <p class="text-overline mb-3 uppercase text-brand-strong">One focused workflow</p>
-          <h2 class="text-title">From linked project to reproducible local state.</h2>
+      <article class="mx-auto max-w-3xl">
+        <header class="mx-auto mb-12 max-w-2xl">
+          <p class="text-overline mb-3 uppercase text-brand-strong">Why Supabee</p>
+          <h2 class="text-title">The problems Supabee solves.</h2>
+        </header>
+        <div class="mx-auto max-w-2xl">
+          <p class="text-body my-4 text-muted-foreground">Supabee is a CLI wrapper around the Supabase CLI. It takes <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db reset</code> and <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db dump</code> and makes them cover more cases.</p>
+
+          <p class="text-body my-4 text-muted-foreground">The four primary problems this solves:</p>
+          <ol class="text-body my-4 list-decimal space-y-1.5 pl-6 text-muted-foreground">
+            <li class="pl-1"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db reset</code> runs all migrations before the seeding scripts, causing errors when the data is loaded.</li>
+            <li class="pl-1"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db reset</code> does not behave like an actual deploy, so problems only show up during <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db push</code>.</li>
+            <li class="pl-1"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db dump --data-only</code> produces one enormous seed file that becomes difficult to review and edit.</li>
+            <li class="pl-1"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db dump</code> produces one enormous schema file, with no per-object files for declarative schemas.</li>
+          </ol>
+
+          <h2 class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"><a href="/docs/database-lifecycle/#reset-a-local-database" class="text-foreground no-underline transition hover:text-brand-strong">supabee db reset</a></h2>
+          <p class="text-body my-4 text-muted-foreground">Say you are working on an order inventory system with a table like this:</p>
+          <Code code={ordersSchema} lang="sql" theme="github-dark" class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg" />
+
+          <p class="text-body my-4 text-muted-foreground">A new requirement replaces the <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">status</code> column, so you write a migration:</p>
+          <Code code={replaceOrderStatus} lang="sql" theme="github-dark" class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg" />
+
+          <p class="text-body my-4 text-muted-foreground">Now <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db reset</code> runs every migration first, then loads the seed. The seed still fills <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">status</code>, but the migration has already dropped it:</p>
+          <pre class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 bg-code p-5 font-mono text-code-foreground shadow-lg"><code>Applying migration 20260310090000_replace_order_status.sql...
+Seeding data from supabase/seed.sql...
+ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</code></pre>
+          <MigrationSequence variant="conflict" class="my-8 h-auto w-full rounded-2xl" />
+
+          <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">Inconsistent with <code class="text-code-ui font-mono">db push</code></h3>
+          <p class="text-body my-4 text-muted-foreground">This does not happen in the same order when you deploy. <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db push</code> and <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase migration up</code> apply the new migration to a database that already contains its data.</p>
+          <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db push</code> runs against rows that already exist, while <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">db reset</code> expects the seed to fit a schema that changed after the data was dumped.</p>
+          <MigrationSequence variant="deployment" class="my-8 h-auto w-full rounded-2xl" />
+
+          <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">The solution</h3>
+          <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabee db reset</code> holds back migrations that have not been deployed and loads the seed first. Once the database looks like production, it restores and applies the new migrations on top.</p>
+          <p class="text-body my-4 text-muted-foreground">That mirrors how migration scripts reach the production database, so one run checks both that the local reset works and that the new migrations can be deployed.</p>
+
+          <h2 class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"><a href="/docs/syncing/#sync-data" class="text-foreground no-underline transition hover:text-brand-strong">supabee sync data</a></h2>
+          <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db dump --data-only</code> puts every table into one seed file. Once a project contains thousands of rows, any table change becomes a diff inside the same enormous file, and reproducing a bug starts with finding the right rows inside it.</p>
+          <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabee sync data</code> splits the dump into one file per table, numbered in load order. Large tables can span multiple files. Supabee then reconstructs and validates the result so you know the split files still load.</p>
+
+          <h2 class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"><a href="/docs/syncing/#sync-schema" class="text-foreground no-underline transition hover:text-brand-strong">supabee sync schema</a></h2>
+          <p class="text-body my-4 text-muted-foreground">A schema dump has the same problem: every table, function, type, policy, trigger, view, and index arrives in one file.</p>
+          <p class="text-body my-4 text-muted-foreground"><code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabee sync schema</code> keeps the valid ordering from the original dump while splitting it into a folder tree with one file per object. An <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">order-index.json</code> records the full sequence so Supabee can rebuild the dump and verify that the result still matches.</p>
+          <p class="text-body my-4 text-muted-foreground">You get per-object schema files without having to work out the dependency order yourself.</p>
         </div>
-        <div class="grid gap-4 md:grid-cols-3">
-          <article class="rounded-3xl border border-border bg-card p-7">
-            <span class="text-code-ui mb-8 flex size-10 items-center justify-center rounded-xl bg-brand/12 font-mono text-brand-strong">01</span>
-            <h3 class="text-heading">Sync</h3>
-            <p class="text-body mt-2 text-muted-foreground">Dump schema or data from your linked Supabase project, then split, reconstruct, and validate it.</p>
-            <code class="text-code-ui mt-6 block font-mono text-brand-strong">supabee sync schema</code>
-          </article>
-          <article class="rounded-3xl border border-border bg-card p-7">
-            <span class="text-code-ui mb-8 flex size-10 items-center justify-center rounded-xl bg-brand/12 font-mono text-brand-strong">02</span>
-            <h3 class="text-heading">Review</h3>
-            <p class="text-body mt-2 text-muted-foreground">Keep generated SQL organized by schema category or table so changes stay readable in Git.</p>
-            <code class="text-code-ui mt-6 block font-mono text-brand-strong">supabee migration audit</code>
-          </article>
-          <article class="rounded-3xl border border-border bg-card p-7">
-            <span class="text-code-ui mb-8 flex size-10 items-center justify-center rounded-xl bg-brand/12 font-mono text-brand-strong">03</span>
-            <h3 class="text-heading">Replay safely</h3>
-            <p class="text-body mt-2 text-muted-foreground">Reset or start Supabase while deferring post-seed migrations and applying them afterward.</p>
-            <code class="text-code-ui mt-6 block font-mono text-brand-strong">supabee db reset</code>
-          </article>
-        </div>
-      </div>
+      </article>
     </section>
 
     <section class="border-y border-border bg-muted/55 px-5 py-24">
-      <div class="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[.85fr_1.15fr]">
+      <div class="mx-auto grid max-w-3xl items-center gap-14 lg:grid-cols-[.85fr_1.15fr]">
         <div>
           <p class="text-overline mb-3 uppercase text-brand-strong">Predictable by design</p>
           <h2 class="text-title">The commands you need, without hiding the SQL.</h2>
@@ -83,6 +117,6 @@ import Header from '../components/Header.astro';
     </section>
   </main>
   <footer class="text-small px-5 py-10 text-muted-foreground">
-    <p class="mx-auto max-w-6xl">jacobchak © {new Date().getFullYear()}. All rights reserved.</p>
+    <p class="mx-auto max-w-3xl">jacobchak © {new Date().getFullYear()}. All rights reserved.</p>
   </footer>
 </BaseLayout>

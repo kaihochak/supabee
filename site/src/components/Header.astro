@@ -1,10 +1,5 @@
----
-interface Props { compact?: boolean; }
-const { compact = false } = Astro.props;
----
-
 <header class="fixed inset-x-0 top-0 z-50 h-14 border-b border-border bg-background/90 backdrop-blur-xl">
-  <div class:list={["mx-auto flex h-full items-center gap-3 px-4", compact ? "max-w-none" : "max-w-7xl"]}>
+  <div class="flex h-full w-full items-center gap-3 px-4">
     <a href="/" class="text-wordmark">Supabee.</a>
     <nav class="ml-3 hidden items-center gap-5 sm:flex" aria-label="Primary navigation">
       <a href="/docs/" class="text-label text-muted-foreground transition hover:text-foreground">Docs</a>

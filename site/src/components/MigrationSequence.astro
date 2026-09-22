@@ -69,6 +69,11 @@ const titleId = `${id}-title`;
 const descriptionId = `${id}-description`;
 const groupLabelX = 166 + config.group.labelWidth / 2;
 const dataGroupLabelX = config.dataGroup ? 166 + config.dataGroup.labelWidth / 2 : 0;
+const rowDelay = (index: number) => 140 + index * 220;
+const connectorDelay = (index: number) => rowDelay(index) + 120;
+const dataGroupIndex = config.rows.findIndex((row) => row.kind === 'seeding' || row.kind === 'failed-seeding');
+const dataGroupDelay = Math.max(0, rowDelay(dataGroupIndex) - 90);
+const conflictDelay = config.conflictY ? connectorDelay(config.rows.length - 2) : 0;
 
 const rowColors = {
   migration: {
@@ -80,11 +85,11 @@ const rowColors = {
     weight: 400,
   },
   'new-migration': {
-    fill: '#ffffff',
-    stroke: '#318153',
-    markerFill: '#318153',
+    fill: '#fff4d8',
+    stroke: '#cf8a16',
+    markerFill: '#ad6e0a',
     markerText: '#ffffff',
-    text: '#202623',
+    text: '#6f4608',
     weight: 500,
   },
   seeding: {
@@ -106,24 +111,29 @@ const rowColors = {
 } as const;
 ---
 
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  width="960"
-  height={config.height}
-  viewBox={`0 0 960 ${config.height}`}
-  role="img"
-  aria-labelledby={`${titleId} ${descriptionId}`}
-  class={className}
->
+<figure class={className}>
+  <figcaption class="text-label mb-4 text-foreground">{config.title}</figcaption>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="960"
+    height={config.height}
+    viewBox={`0 0 960 ${config.height}`}
+    role="img"
+    aria-labelledby={`${titleId} ${descriptionId}`}
+    class="h-auto w-full rounded-2xl"
+    data-migration-sequence
+  >
   <title id={titleId}>{config.title}</title>
   <desc id={descriptionId}>{config.description}</desc>
 
-  <rect x="140" y={config.group.y} width="680" height={config.group.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
-  <rect x="166" y="15" width={config.group.labelWidth} height="32" rx="16" fill="#318153" />
-  <text x={groupLabelX} y="36" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.group.label}</text>
+  <g class="sequence-layer" style="--sequence-delay: 0ms">
+    <rect x="140" y={config.group.y} width="680" height={config.group.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
+    <rect x="166" y="15" width={config.group.labelWidth} height="32" rx="16" fill="#318153" />
+    <text x={groupLabelX} y="36" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.group.label}</text>
+  </g>
 
   {config.dataGroup && (
-    <g>
+    <g class="sequence-layer" style={`--sequence-delay: ${dataGroupDelay}ms`}>
       <rect x="140" y={config.dataGroup.y} width="680" height={config.dataGroup.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
       <rect x="166" y={config.dataGroup.y - 13} width={config.dataGroup.labelWidth} height="32" rx="16" fill="#318153" />
       <text x={dataGroupLabelX} y={config.dataGroup.y + 8} text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.dataGroup.label}</text>
@@ -132,12 +142,12 @@ const rowColors = {
 
   <g fill="none" stroke="#dce4e0" stroke-width="2">
     {config.rows.slice(0, -1).map((row, index) => (
-      <path d={`M480 ${row.y + 84}V${config.rows[index + 1].y}`} />
+      <path class="sequence-connector" style={`--sequence-delay: ${connectorDelay(index)}ms`} pathLength="1" d={`M480 ${row.y + 84}V${config.rows[index + 1].y}`} />
     ))}
   </g>
 
   {config.conflictY && (
-    <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+    <g class="sequence-conflict" style={`--sequence-delay: ${conflictDelay}ms`} font-family="Inter, ui-sans-serif, system-ui, sans-serif">
       <circle cx="480" cy={config.conflictY} r="14" fill="#dc4c43" />
       <text x="480" y={config.conflictY + 6} text-anchor="middle" font-size="17" font-weight="600" fill="#ffffff">!</text>
       <text x="506" y={config.conflictY + 6} font-size="15" font-weight="500" fill="#b93630">Conflict</text>
@@ -145,12 +155,12 @@ const rowColors = {
   )}
 
   <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
-    {config.rows.map((row) => {
+    {config.rows.map((row, index) => {
       const colors = rowColors[row.kind];
       const markerY = row.y + 42;
       return (
-        <g>
-          <rect x="180" y={row.y} width="600" height="84" rx="14" fill={colors.fill} stroke={colors.stroke} stroke-width="2" />
+        <g class:list={['sequence-row', { 'is-new-migration': row.kind === 'new-migration' }]} style={`--sequence-delay: ${rowDelay(index)}ms`}>
+          <rect x="180" y={row.y} width="600" height="84" rx="14" fill={colors.fill} stroke={colors.stroke} stroke-width={row.kind === 'new-migration' ? 3 : 2} />
           <circle cx="228" cy={markerY} r="17" fill={colors.markerFill} />
           <text x="228" y={markerY + 6} text-anchor="middle" font-size="16" font-weight="500" fill={colors.markerText}>{row.marker}</text>
           <text x="266" y={row.y + 50} font-size="24" font-weight={colors.weight} fill={colors.text}>{row.label}</text>
@@ -158,4 +168,81 @@ const rowColors = {
       );
     })}
   </g>
-</svg>
+  </svg>
+</figure>
+
+<script>
+  const prepareMigrationSequences = () => {
+    const sequences = document.querySelectorAll<SVGElement>('[data-migration-sequence]:not([data-animation-ready])');
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    }, { threshold: 0.22 });
+
+    for (const sequence of sequences) {
+      sequence.dataset.animationReady = 'true';
+      sequence.classList.add('will-animate');
+      observer.observe(sequence);
+    }
+  };
+
+  prepareMigrationSequences();
+  document.addEventListener('astro:page-load', prepareMigrationSequences);
+</script>
+
+<style>
+  .is-new-migration > rect {
+    filter: drop-shadow(0 10px 16px rgb(207 138 22 / 20%));
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .will-animate .sequence-layer,
+    .will-animate .sequence-row,
+    .will-animate .sequence-conflict {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    .will-animate .sequence-connector {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+    }
+
+    .will-animate.is-visible .sequence-layer,
+    .will-animate.is-visible .sequence-row,
+    .will-animate.is-visible .sequence-conflict {
+      animation: sequence-enter 420ms cubic-bezier(.22, 1, .36, 1) var(--sequence-delay) both;
+    }
+
+    .will-animate.is-visible .sequence-connector {
+      animation: sequence-draw 300ms ease-out var(--sequence-delay) both;
+    }
+
+    .will-animate.is-visible .sequence-conflict circle {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: conflict-pulse 520ms ease-out calc(var(--sequence-delay) + 260ms) both;
+    }
+  }
+
+  @keyframes sequence-enter {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes sequence-draw {
+    to { stroke-dashoffset: 0; }
+  }
+
+  @keyframes conflict-pulse {
+    0%, 100% { transform: scale(1); }
+    45% { transform: scale(1.35); }
+  }
+</style>

@@ -19,10 +19,10 @@ alter table public.orders add column status_id bigint not null default 1;`;
 <BaseLayout>
   <Header />
   <main>
-    <section class="relative overflow-hidden px-5 pb-24 pt-36 sm:pt-44">
+    <section class="relative overflow-hidden px-5 pb-16 pt-28 sm:pt-32">
       <div class="mx-auto max-w-3xl text-center">
         <div
-          class="text-small mb-6 inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-brand-strong"
+          class="text-small mb-4 inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-brand-strong"
         >
           <span class="size-1.5 rounded-full bg-brand"></span>
           Built for reliable Supabase workflows
@@ -31,13 +31,13 @@ alter table public.orders add column status_id bigint not null default 1;`;
           More control over Supabase resets and dumps.
         </h1>
         <p
-          class="text-body mx-auto mt-7 max-w-2xl text-balance text-muted-foreground"
+          class="text-body mx-auto mt-5 max-w-2xl text-balance text-muted-foreground"
         >
           Supabee turns linked database dumps into reviewable files and replays
           migrations around your seed data in the right order.
         </p>
         <div
-          class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row"
+          class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
           <a
             href="/docs/getting-started/"
@@ -50,7 +50,7 @@ alter table public.orders add column status_id bigint not null default 1;`;
             >View on npm</a
           >
         </div>
-        <ResetSequenceComparison class="mx-auto mt-14 max-w-2xl text-left" showTitles={false} />
+        <ResetSequenceComparison class="mx-auto mt-16 max-w-2xl text-left" showTitles={false} />
       </div>
     </section>
 

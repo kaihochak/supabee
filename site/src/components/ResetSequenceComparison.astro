@@ -42,7 +42,8 @@ const { class: className, showTitles = true } = Astro.props;
 
     .comparison-phase :global(.sequence-layer),
     .comparison-phase :global(.sequence-row),
-    .comparison-phase :global(.sequence-conflict) {
+    .comparison-phase :global(.sequence-conflict),
+    .comparison-phase :global(.sequence-success) {
       opacity: 0;
       transform: translateY(10px);
       animation: loop-step 10s cubic-bezier(.22, 1, .36, 1) infinite both;
@@ -57,6 +58,7 @@ const { class: className, showTitles = true } = Astro.props;
     .conflict-phase :global(.sequence-layer),
     .conflict-phase :global(.sequence-row),
     .conflict-phase :global(.sequence-conflict),
+    .conflict-phase :global(.sequence-success),
     .conflict-phase :global(.sequence-connector) {
       animation-delay: var(--sequence-delay);
     }
@@ -64,6 +66,7 @@ const { class: className, showTitles = true } = Astro.props;
     .corrected-phase :global(.sequence-layer),
     .corrected-phase :global(.sequence-row),
     .corrected-phase :global(.sequence-conflict),
+    .corrected-phase :global(.sequence-success),
     .corrected-phase :global(.sequence-connector) {
       animation-delay: calc(5s + var(--sequence-delay));
     }

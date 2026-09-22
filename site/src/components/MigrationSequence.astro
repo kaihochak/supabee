@@ -21,7 +21,7 @@ const { variant, class: className, id = `migration-sequence-${variant}`, animate
 const variants = {
   'db-push': {
     title: 'Supabase db push',
-    height: 670,
+    height: 726,
     group: { y: 28, height: 486, label: 'Live database', labelWidth: 154 },
     dataGroup: null,
     rows: [
@@ -29,9 +29,10 @@ const variants = {
       { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
       { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
       { y: 398, label: 'Seeding', marker: '+', kind: 'seeding' },
-      { y: 554, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
+      { y: 610, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
     ] satisfies Row[],
     conflictY: null,
+    successY: 562,
     description: 'Migration 1, Migration 2, Migration 3, and seeding form the live database before New Migration 4 runs.',
   },
   'reset-conflict': {
@@ -47,11 +48,12 @@ const variants = {
       { y: 674, label: 'Seeding', marker: '+', kind: 'failed-seeding' },
     ] satisfies Row[],
     conflictY: 594,
+    successY: null,
     description: 'The schema and data dumps reflect Migrations 1 through 3. Migration 4 then runs before seeding, so the data dump conflicts with the changed schema.',
   },
   'supabee-reset': {
     title: 'Supabee db reset',
-    height: 746,
+    height: 798,
     group: { y: 28, height: 374, label: 'Schema dump', labelWidth: 138 },
     dataGroup: { y: 436, height: 150, label: 'Data dump', labelWidth: 124 },
     rows: [
@@ -59,9 +61,10 @@ const variants = {
       { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
       { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
       { y: 470, label: 'Seeding', marker: '+', kind: 'seeding' },
-      { y: 630, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
+      { y: 682, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
     ] satisfies Row[],
     conflictY: null,
+    successY: 634,
     description: 'Supabee restores the schema dump through Migration 3, loads the data dump as seed data, and then applies New Migration 4.',
   },
 } as const;
@@ -76,6 +79,7 @@ const connectorDelay = (index: number) => rowDelay(index) + 120;
 const dataGroupIndex = config.rows.findIndex((row) => row.kind === 'seeding' || row.kind === 'failed-seeding');
 const dataGroupDelay = Math.max(0, rowDelay(dataGroupIndex) - 90);
 const conflictDelay = config.conflictY ? connectorDelay(config.rows.length - 2) : 0;
+const successDelay = config.successY ? connectorDelay(config.rows.length - 2) : 0;
 
 const rowColors = {
   migration: {
@@ -113,7 +117,7 @@ const rowColors = {
 } as const;
 ---
 
-<figure class={className}>
+<figure class:list={['mx-auto w-full max-w-xl', className]}>
   {showTitle && <figcaption class="text-label mb-4 text-center text-foreground">{config.title}</figcaption>}
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -153,6 +157,14 @@ const rowColors = {
       <circle cx="480" cy={config.conflictY} r="14" fill="#dc4c43" />
       <text x="480" y={config.conflictY + 6} text-anchor="middle" font-size="17" font-weight="600" fill="#ffffff">!</text>
       <text x="506" y={config.conflictY + 6} font-size="15" font-weight="500" fill="#b93630">Conflict</text>
+    </g>
+  )}
+
+  {config.successY && (
+    <g class="sequence-success" style={`--sequence-delay: ${successDelay}ms`} font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+      <circle cx="480" cy={config.successY} r="14" fill="#318153" />
+      <path d={`M474 ${config.successY}l4 4 8-9`} fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="506" y={config.successY + 6} font-size="15" font-weight="500" fill="#245f3d">Success</text>
     </g>
   )}
 
@@ -205,7 +217,8 @@ const rowColors = {
   @media (prefers-reduced-motion: no-preference) {
     .will-animate .sequence-layer,
     .will-animate .sequence-row,
-    .will-animate .sequence-conflict {
+    .will-animate .sequence-conflict,
+    .will-animate .sequence-success {
       opacity: 0;
       transform: translateY(10px);
     }
@@ -217,7 +230,8 @@ const rowColors = {
 
     .will-animate.is-visible .sequence-layer,
     .will-animate.is-visible .sequence-row,
-    .will-animate.is-visible .sequence-conflict {
+    .will-animate.is-visible .sequence-conflict,
+    .will-animate.is-visible .sequence-success {
       animation: sequence-enter 420ms cubic-bezier(.22, 1, .36, 1) var(--sequence-delay) both;
     }
 

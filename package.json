@@ -41,10 +41,12 @@
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs && node dist/index.js --help",
+    "lint:typography": "node scripts/check-typography.mjs",
     "docs:dev": "npm --prefix site run dev",
     "docs:build": "npm --prefix site run build",
     "docs:preview": "npm --prefix site run preview",
-    "pack:check": "npm run build && cross-env npm_config_cache=.npm-cache npm pack --dry-run"
+    "pack:check": "npm run build && cross-env npm_config_cache=.npm-cache npm pack --dry-run",
+    "prepare": "husky"
   },
   "dependencies": {
     "commander": "^12.1.0"
@@ -52,6 +54,7 @@
   "devDependencies": {
     "@types/node": "^22.19.15",
     "cross-env": "^7.0.3",
+    "husky": "^9.1.7",
     "typescript": "^5.9.3"
   }
 }

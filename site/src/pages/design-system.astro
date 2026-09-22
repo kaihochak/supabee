@@ -1,0 +1,179 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "../components/Header.astro";
+
+const typography = [
+  { name: "Display", token: "text-display", sample: "Supabee" },
+  { name: "Title", token: "text-title", sample: "Database lifecycle" },
+  { name: "Heading", token: "text-heading", sample: "Predictable workflows" },
+  {
+    name: "Body",
+    token: "text-body",
+    sample: "Keep schema, seed data, and migrations in sync.",
+  },
+  {
+    name: "Small",
+    token: "text-small",
+    sample: "Last synchronized two minutes ago.",
+  },
+  { name: "Label", token: "text-label", sample: "Project reference" },
+  { name: "Overline", token: "text-overline", sample: "WORKFLOWS" },
+  {
+    name: "Code",
+    token: "text-code-ui",
+    sample: "supabee sync schema",
+    mono: true,
+  },
+];
+
+const colors = [
+  { name: "Background", token: "--background", className: "bg-background" },
+  { name: "Foreground", token: "--foreground", className: "bg-foreground" },
+  { name: "Card", token: "--card", className: "bg-card" },
+  { name: "Primary", token: "--primary", className: "bg-primary" },
+  { name: "Secondary", token: "--secondary", className: "bg-secondary" },
+  { name: "Muted", token: "--muted", className: "bg-muted" },
+  { name: "Accent", token: "--accent", className: "bg-accent" },
+  { name: "Border", token: "--border", className: "bg-border" },
+  { name: "Destructive", token: "--destructive", className: "bg-destructive" },
+];
+
+const radii = [
+  { name: "sm", className: "rounded-sm" },
+  { name: "md", className: "rounded-md" },
+  { name: "lg", className: "rounded-lg" },
+  { name: "xl", className: "rounded-xl" },
+];
+---
+
+<BaseLayout
+  title="Design system — Supabee"
+  description="Live Supabee design tokens."
+  canonicalPath="/design-system/"
+>
+  <Header />
+  <main class="px-5 pb-20 pt-24">
+    <div class="mx-auto max-w-6xl">
+      <header
+        class="flex flex-col gap-2 pb-6 sm:flex-row sm:items-end sm:justify-between"
+      >
+        <h1 class="text-title">Design system</h1>
+      </header>
+
+      <section
+        class="border-b border-border py-10"
+        aria-labelledby="typography-heading"
+      >
+        <h2 id="typography-heading" class="text-heading mb-6">Typography</h2>
+        {
+          typography.map((type) => (
+            <div class="grid gap-2 py-5 md:grid-cols-[9rem_1fr] md:items-end">
+              <div>
+                <p class="text-label">{type.name}</p>
+                <code class="text-code-ui font-mono text-muted-foreground">
+                  {type.token}
+                </code>
+              </div>
+              <p
+                class:list={[
+                  type.token,
+                  type.mono && "font-mono",
+                  "min-w-0 overflow-hidden text-ellipsis",
+                ]}
+              >
+                {type.sample}
+              </p>
+            </div>
+          ))
+        }
+      </section>
+
+      <section
+        class="border-b border-border py-10"
+        aria-labelledby="colors-heading"
+      >
+        <h2 id="colors-heading" class="text-heading mb-6">Colors</h2>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {
+            colors.map((color) => (
+              <div class="overflow-hidden rounded-lg border border-border bg-card">
+                <div
+                  class:list={["h-16 border-b border-border", color.className]}
+                />
+                <div class="p-3">
+                  <p class="text-label">{color.name}</p>
+                  <code class="text-code-ui font-mono text-muted-foreground">
+                    {color.token}
+                  </code>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </section>
+
+      <section class="grid gap-10 py-10 lg:grid-cols-2">
+        <div aria-labelledby="radius-heading">
+          <h2 id="radius-heading" class="text-heading mb-6">Radius</h2>
+          <div class="grid grid-cols-4 gap-3">
+            {
+              radii.map((radius) => (
+                <div
+                  class:list={[
+                    "flex aspect-square items-end border border-border bg-accent p-3",
+                    radius.className,
+                  ]}
+                >
+                  <code class="text-code-ui font-mono text-accent-foreground">
+                    {radius.name}
+                  </code>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <div aria-labelledby="controls-heading">
+          <h2 id="controls-heading" class="text-heading mb-6">Controls</h2>
+          <div class="space-y-5 rounded-lg border border-border bg-card p-5">
+            <div class="flex flex-wrap gap-2">
+              <button
+                class="text-label inline-flex h-10 items-center rounded-lg bg-primary px-4 text-primary-foreground"
+                >Primary</button
+              >
+              <button
+                class="text-label inline-flex h-10 items-center rounded-lg border border-border px-4"
+                >Secondary</button
+              >
+              <button
+                disabled
+                class="text-label inline-flex h-10 items-center rounded-lg bg-muted px-4 text-muted-foreground opacity-60"
+                >Disabled</button
+              >
+            </div>
+            <input
+              type="text"
+              value="local-development"
+              aria-label="Project reference"
+              class="text-small h-10 w-full rounded-lg border border-border bg-background px-3 outline-none focus:border-primary focus:ring-3 focus:ring-primary/15"
+            />
+            <div class="flex flex-wrap gap-2">
+              <span
+                class="text-small rounded-full bg-accent px-3 py-1 text-accent-foreground"
+                >Default</span
+              >
+              <span
+                class="text-small rounded-full bg-success/15 px-3 py-1 text-success"
+                >Ready</span
+              >
+              <span
+                class="text-small rounded-full bg-danger/15 px-3 py-1 text-danger"
+                >Blocked</span
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</BaseLayout>

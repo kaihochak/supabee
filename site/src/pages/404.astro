@@ -1,0 +1,16 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+---
+
+<BaseLayout title="Page not found — Supabee" description="The requested Supabee documentation page could not be found." canonicalPath="/404">
+  <Header />
+  <main class="flex min-h-screen items-center justify-center px-5 pt-14 text-center">
+    <div>
+      <p class="text-code-ui font-mono text-brand-strong">404</p>
+      <h1 class="text-title mt-4">This page could not be found.</h1>
+      <p class="mt-4 text-muted-foreground sr-only">The link may be outdated, or the documentation moved.</p>
+      <a href="/docs/" class="text-label mt-8 inline-flex h-11 items-center rounded-xl bg-foreground px-5 text-background">Back to the docs</a>
+    </div>
+  </main>
+</BaseLayout>

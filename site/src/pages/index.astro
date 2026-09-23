@@ -64,66 +64,17 @@ alter table public.orders add column status_id bigint not null default 1;`;
           <p class="text-overline mb-3 uppercase text-brand-strong">
             Why Supabee
           </p>
-          <h2 class="text-title">The problems Supabee solves.</h2>
+          <h2 class="text-display">The problems Supabee solves.</h2>
         </header>
         <div class="mx-auto max-w-7xl">
-          <p class="text-body my-4 text-muted-foreground">
-            Supabee is a CLI wrapper around the Supabase CLI. It takes <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db reset</code
-            > and <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db dump</code
-            > and makes them cover more cases.
-          </p>
-
-          <p class="text-body my-4 text-muted-foreground">
-            The four primary problems this solves:
-          </p>
-          <ol
-            class="text-body my-4 list-decimal space-y-1.5 pl-6 text-muted-foreground"
-          >
-            <li class="pl-1">
-              <code
-                class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-                >db reset</code
-              > runs all migrations before the seeding scripts, causing errors when
-              the data is loaded.
-            </li>
-            <li class="pl-1">
-              <code
-                class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-                >db reset</code
-              > does not behave like an actual deploy, so problems only show up during
-              <code
-                class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-                >db push</code
-              >.
-            </li>
-            <li class="pl-1">
-              <code
-                class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-                >db dump --data-only</code
-              > produces one enormous seed file that becomes difficult to review and
-              edit.
-            </li>
-            <li class="pl-1">
-              <code
-                class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-                >db dump</code
-              > produces one enormous schema file, with no per-object files for declarative
-              schemas.
-            </li>
-          </ol>
-
           <section
-            class="mt-12 grid gap-5 border-t border-border pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
+            class="mt-12 grid gap-5 pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
           >
             <h2 class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
             <a
               href="/docs/database-lifecycle/#reset-a-local-database"
               class="text-foreground no-underline transition hover:text-brand-strong"
-              >supabee db reset</a>
+              >supabee db reset <span aria-hidden="true" class="text-label align-super">↗</span></a>
             </h2>
             <div class="min-w-0">
           <p class="text-body my-4 text-muted-foreground">
@@ -228,14 +179,16 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             </div>
           </section>
 
-          <h2
-            class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"
+          <section
+            class="mt-12 grid gap-5 pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
           >
+            <h2 class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
             <a
               href="/docs/syncing/#sync-data"
               class="text-foreground no-underline transition hover:text-brand-strong"
-              >supabee sync data</a>
-          </h2>
+              >supabee sync data <span aria-hidden="true" class="text-label align-super">↗</span></a>
+            </h2>
+            <div class="min-w-0">
           <p class="text-body my-4 text-muted-foreground">
             <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
@@ -252,15 +205,19 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             tables can span multiple files. Supabee then reconstructs and validates
             the result so you know the split files still load.
           </p>
+            </div>
+          </section>
 
-          <h2
-            class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"
+          <section
+            class="mt-12 grid gap-5 pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
           >
+            <h2 class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
             <a
               href="/docs/syncing/#sync-schema"
               class="text-foreground no-underline transition hover:text-brand-strong"
-              >supabee sync schema</a>
-          </h2>
+              >supabee sync schema <span aria-hidden="true" class="text-label align-super">↗</span></a>
+            </h2>
+            <div class="min-w-0">
           <p class="text-body my-4 text-muted-foreground">
             A schema dump has the same problem: every table, function, type,
             policy, trigger, view, and index arrives in one file.
@@ -280,6 +237,8 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             You get per-object schema files without having to work out the
             dependency order yourself.
           </p>
+            </div>
+          </section>
         </div>
       </article>
       <div

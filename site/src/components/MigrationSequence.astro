@@ -73,11 +73,15 @@ const seedStyle = (failed = false) => failed
     {config.highlight.map((group, index) => {
       const width = labelWidth(group.label);
       const delay = groupStart(group.groups[0]);
+      const isLiveDatabase = group.label === 'Live database';
+      const highlightColor = isLiveDatabase ? 'var(--success)' : 'var(--accent)';
+      const highlightTextColor = isLiveDatabase ? 'var(--card)' : 'var(--accent-foreground)';
+      const highlightFillOpacity = isLiveDatabase ? 0.05 : 0.2;
       return (
         <g data-node={`highlight-${index}`} data-sequence-node data-kind="item" data-delay={delay}>
-          <rect x={highlightX} y={group.y} width={highlightWidth} height={group.height} rx="22" fill="color-mix(in oklab, var(--success) 12%, var(--card))" stroke="var(--success)" stroke-width="0.25" />
-          <rect x={highlightX + 26} y={group.y - 13} width={width} height="30" rx="15" fill="var(--success)" />
-          <text x={highlightX + 26 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill="var(--card)">{group.label}</text>
+          <rect x={highlightX} y={group.y} width={highlightWidth} height={group.height} rx="22" fill={highlightColor} fill-opacity={highlightFillOpacity} stroke={highlightColor} stroke-width="0.25" />
+          <rect x={highlightX + 26} y={group.y - 13} width={width} height="30" rx="15" fill={highlightColor} />
+          <text x={highlightX + 26 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill={highlightTextColor}>{group.label}</text>
         </g>
       );
     })}

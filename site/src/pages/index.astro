@@ -172,19 +172,29 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             The solution
           </h3>
           <p class="text-body my-4 text-foreground">
-            <code
+            The simplest workaround is to change the seed script so it no longer
+            inserts the removed <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabee db reset</code
-            > holds back migrations that have not been deployed and loads the seed
-            first. Once the database looks like production, it restores and applies
-            the new migrations on top.
+              >status</code
+            > column. But with a large database, keeping seed data compatible with
+            every schema change quickly becomes impractical.
           </p>
-          <p class="text-body my-4 text-foreground">
-            That mirrors how migration scripts reach the production database, so
-            one run checks both that the local reset works and that the new
-            migrations can be deployed.
-          </p>
-          <MigrationSequence variant="supabee-reset" class="my-8" />
+          <div
+            class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
+          >
+            <MigrationSequence variant="supabee-reset" class="min-w-0" />
+            <div
+              class="my-5 flex items-center justify-center gap-2 md:my-0 md:mt-2"
+              role="img"
+              aria-label="Same execution order"
+            >
+              <span class="h-px flex-1 bg-border md:hidden"></span>
+              <span aria-hidden="true" class="text-title font-mono text-foreground">=</span>
+              <span class="text-label md:sr-only">Same order</span>
+              <span class="h-px flex-1 bg-border md:hidden"></span>
+            </div>
+            <MigrationSequence variant="db-push" class="min-w-0" />
+          </div>
             </div>
           </section>
 

@@ -40,7 +40,7 @@ const seedStyle = (failed = false) => failed
   : { fill: '#edf8f1', stroke: '#9bc8aa', icon: '#318153', text: '#245f3d' };
 ---
 
-<figure class:list={['migration-diagram mx-auto w-full max-w-lg', className]}>
+<figure class:list={['migration-diagram mx-auto w-full max-w-sm', className]}>
   {config.loopTitle
     ? (
       <figcaption data-node="loop-title" data-initial-text={config.loopTitle.initial} class="text-title mb-4 text-center text-foreground">
@@ -57,9 +57,9 @@ const seedStyle = (failed = false) => failed
     )}
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="960"
+    width="580"
     height={config.height}
-    viewBox={`0 0 960 ${config.height}`}
+    viewBox={`190 0 580 ${config.height}`}
     role="img"
     aria-labelledby={`${titleId} ${descriptionId}`}
     class="h-auto w-full"

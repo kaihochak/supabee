@@ -119,15 +119,15 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     phases: [
       {
         actions: [{ type: 'strike', target: 'loop-title' }],
-        waitAfter: 350,
+        waitAfter: 450,
       },
       {
         actions: [{ type: 'hide', targets: ['step-2', 'step-3', 'connector-1', 'connector-2', 'connector-3', 'status'] }],
-        waitAfter: 350,
+        waitAfter: 450,
       },
       {
         actions: [{ type: 'label', target: 'loop-title', text: 'supabee db reset' }],
-        waitAfter: 350,
+        waitAfter: 450,
       },
       {
         actions: [
@@ -135,21 +135,21 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
           { type: 'seed-success', target: 'step-4' },
           { type: 'show', targets: ['corrected-connector-0'] },
         ],
-        waitAfter: 500,
+        waitAfter: 600,
       },
       {
         actions: [
           { type: 'move', targets: ['step-2'], y: 196, show: true },
           { type: 'show', targets: ['corrected-connector-1'] },
         ],
-        waitAfter: 190,
+        waitAfter: 300,
       },
       {
         actions: [
           { type: 'move', targets: ['step-3'], y: 196, show: true },
           { type: 'show', targets: ['corrected-connector-2'] },
         ],
-        waitAfter: 450,
+        waitAfter: 550,
       },
       {
         actions: [{ type: 'status', target: 'status', kind: 'success', y: -33 }],
@@ -159,4 +159,4 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
   },
 };
 
-export const timing = { groupPause: 820, stepGap: 190, statusPause: 620 };
+export const timing = { groupPause: 900, stepGap: 240, statusGap: 320 };

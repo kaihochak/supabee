@@ -16,7 +16,8 @@ const descriptionId = `${id}-description`;
 const groupStart = (group: number) => 120 + group * timing.groupPause;
 const delayFor = (step: DiagramStep, index: number) => groupStart(step.group) + config.steps.slice(0, index).filter((item) => item.group === step.group).length * timing.stepGap;
 const finalGroup = Math.max(...config.steps.map((step) => step.group));
-const statusDelay = groupStart(finalGroup + 1) - timing.statusPause;
+const lastStepDelay = Math.max(...config.steps.map((step, index) => delayFor(step, index)));
+const statusDelay = lastStepDelay + 380 + timing.statusGap;
 const statusBefore = config.steps.filter((step) => step.group === finalGroup - 1).at(-1)!;
 const statusAfter = config.steps.find((step) => step.group === finalGroup)!;
 const highlightFor = (group: number) => config.highlight.find((highlight) => highlight.groups.includes(group));
@@ -28,18 +29,18 @@ const statusY = (beforeEdge + afterEdge) / 2;
 const labelWidth = (label: string) => label.length * 9 + 38;
 const [titleBrand, ...titleCommand] = config.title.split(' ');
 const titleBrandColor = titleBrand === 'supabee' ? 'var(--warning)' : 'var(--brand-strong)';
-const highlightX = 180;
-const highlightWidth = 600;
-const migrationX = 220;
-const migrationWidth = 520;
-const seedX = 245;
-const seedWidth = 470;
+const highlightX = 270;
+const highlightWidth = 420;
+const migrationX = 310;
+const migrationWidth = 340;
+const seedX = 310;
+const seedWidth = 340;
 const seedStyle = (failed = false) => failed
   ? { fill: '#fff1f0', stroke: '#e6aaa6', icon: '#b93630', text: '#912e29' }
   : { fill: '#edf8f1', stroke: '#9bc8aa', icon: '#318153', text: '#245f3d' };
 ---
 
-<figure class:list={['migration-diagram mx-auto w-full max-w-xl', className]}>
+<figure class:list={['migration-diagram mx-auto w-full max-w-lg', className]}>
   {config.loopTitle
     ? (
       <figcaption data-node="loop-title" data-initial-text={config.loopTitle.initial} class="text-title mb-4 text-center text-foreground">
@@ -109,9 +110,9 @@ const seedStyle = (failed = false) => failed
           return (
             <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class="diagram-seed">
               <rect data-seed-role="surface" x={seedX} y={step.y} width={seedWidth} height="58" rx="29" fill={colors.fill} stroke={colors.stroke} stroke-width="2" />
-              <ellipse data-seed-role="icon" cx={seedX + 41} cy={step.y + 23} rx="13" ry="6" fill="none" stroke={colors.icon} stroke-width="2" />
-              <path data-seed-role="icon" d={`M${seedX + 28} ${step.y + 23}v12c0 3 6 6 13 6s13-3 13-6V${step.y + 23}`} fill="none" stroke={colors.icon} stroke-width="2" />
-              <text data-seed-role="text" x={seedX + 77} y={step.y + 37} font-size="21" font-weight="400" fill={colors.text}>{step.label}</text>
+              <ellipse data-seed-role="icon" cx={seedX + 24} cy={step.y + 23} rx="11" ry="5" fill="none" stroke={colors.icon} stroke-width="2" />
+              <path data-seed-role="icon" d={`M${seedX + 13} ${step.y + 23}v11c0 3 5 5 11 5s11-2 11-5V${step.y + 23}`} fill="none" stroke={colors.icon} stroke-width="2" />
+              <text data-seed-role="text" x={seedX + 56} y={step.y + 37} font-size="21" font-weight="400" fill={colors.text}>{step.label}</text>
             </g>
           );
         }
@@ -120,11 +121,11 @@ const seedStyle = (failed = false) => failed
           <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class:list={{ 'diagram-new': isNew }}>
             <rect x={migrationX} y={step.y} width={migrationWidth} height="60" rx="12" fill={isNew ? '#fff4d8' : '#fff'} stroke={isNew ? '#cf8a16' : '#dce4e0'} stroke-width={isNew ? 3 : 2} />
             <g fill="none" stroke={isNew ? '#ad6e0a' : '#6d7974'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d={`M${migrationX + 27} ${step.y + 17}h14l8 8v18h-22z`} />
-              <path d={`M${migrationX + 41} ${step.y + 17}v8h8`} />
-              <path d={`M${migrationX + 33} ${step.y + 32}h10M${migrationX + 33} ${step.y + 38}h8`} />
+              <path d={`M${migrationX + 16} ${step.y + 17}h14l8 8v18h-22z`} />
+              <path d={`M${migrationX + 30} ${step.y + 17}v8h8`} />
+              <path d={`M${migrationX + 22} ${step.y + 32}h10M${migrationX + 22} ${step.y + 38}h8`} />
             </g>
-            <text x={migrationX + 68} y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill={isNew ? '#6f4608' : '#202623'}>{step.label}</text>
+            <text x={migrationX + 56} y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill={isNew ? '#6f4608' : '#202623'}>{step.label}</text>
           </g>
         );
       })}

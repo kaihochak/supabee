@@ -4,7 +4,6 @@ export type StepKind = 'migration' | 'new-migration' | 'seeding';
 export interface DiagramStep {
   kind: StepKind;
   label: string;
-  marker: string;
   y: number;
   group: number;
   failed?: boolean;
@@ -35,24 +34,45 @@ export interface DiagramConfig {
   phases?: TransitionPhase[];
 }
 
-const migrations = (group = 0): DiagramStep[] => [
-  { kind: 'migration', label: 'Migration #1', marker: '1', y: 54, group },
-  { kind: 'migration', label: 'Migration #2', marker: '2', y: 138, group },
-  { kind: 'migration', label: 'Migration #3', marker: '3', y: 222, group },
-];
+const layout = {
+  oldMigrations: [54, 138],
+  conflictNewMigrations: [266, 350],
+  conflictSeed: 534,
+  liveSeed: 222,
+  correctedSeed: 290,
+  correctedNewMigrations: [462, 546],
+} as const;
+
+const migrationSteps = (
+  kind: Extract<StepKind, 'migration' | 'new-migration'>,
+  firstNumber: number,
+  positions: readonly number[],
+  group: number,
+): DiagramStep[] => positions.map((y, index) => {
+  const number = firstNumber + index;
+  return {
+    kind,
+    label: `${kind === 'new-migration' ? 'New Migration' : 'Migration'} #${number}`,
+    y,
+    group,
+  };
+});
+
+const oldMigrations = (group = 0) => migrationSteps('migration', 1, layout.oldMigrations, group);
+const newMigrations = (positions: readonly number[], group: number) => migrationSteps('new-migration', 3, positions, group);
 
 const resetConflict: DiagramConfig = {
   title: 'supabase db reset',
-  description: 'The schema dump is restored, Migration 4 changes it, and the older data dump then conflicts with that changed schema.',
+  description: 'The schema dump restores Migrations 1 and 2, new Migrations 3 and 4 change it, and the older data dump then conflicts with that changed schema.',
   height: 650,
   highlight: [
-    { label: 'Schema dump', y: 20, height: 296, groups: [0] },
+    { label: 'Schema dump', y: 20, height: 212, groups: [0] },
     { label: 'Data dump', y: 500, height: 126, groups: [2] },
   ],
   steps: [
-    ...migrations(),
-    { kind: 'new-migration', label: 'New Migration #4', marker: '4', y: 350, group: 1 },
-    { kind: 'seeding', label: 'Seeding', marker: '+', y: 534, group: 2, failed: true },
+    ...oldMigrations(),
+    ...newMigrations(layout.conflictNewMigrations, 1),
+    { kind: 'seeding', label: 'Seeding', y: layout.conflictSeed, group: 2, failed: true },
   ],
   status: 'conflict',
 };
@@ -61,39 +81,40 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
   'reset-conflict': resetConflict,
   'db-push': {
     title: 'supabase db push',
-    description: 'Migrations 1 through 3 and the existing data form the live database before Migration 4 is applied successfully.',
-    height: 560,
-    highlight: [{ label: 'Live database', y: 20, height: 378, groups: [0, 1] }],
+    description: 'Migrations 1 and 2 and the existing data form the live database before new Migrations 3 and 4 are applied successfully.',
+    height: 562,
+    highlight: [{ label: 'Live database', y: 20, height: 294, groups: [0, 1] }],
     steps: [
-      ...migrations(),
-      { kind: 'seeding', label: 'Seeding', marker: '+', y: 306, group: 1 },
-      { kind: 'new-migration', label: 'New Migration #4', marker: '4', y: 478, group: 2 },
+      ...oldMigrations(),
+      { kind: 'seeding', label: 'Seeding', y: layout.liveSeed, group: 1 },
+      ...newMigrations([394, 478], 2),
     ],
     status: 'success',
   },
   'supabee-reset': {
     title: 'supabee db reset',
-    description: 'Supabee restores the schema dump, loads the data dump, and only then applies Migration 4 successfully.',
+    description: 'Supabee restores Migrations 1 and 2 from the schema dump, loads the data dump, and only then applies new Migrations 3 and 4 successfully.',
     height: 630,
     highlight: [
-      { label: 'Schema dump', y: 20, height: 296, groups: [0] },
-      { label: 'Data dump', y: 340, height: 126, groups: [1] },
+      { label: 'Schema dump', y: 20, height: 212, groups: [0] },
+      { label: 'Data dump', y: 256, height: 126, groups: [1] },
     ],
     steps: [
-      ...migrations(),
-      { kind: 'seeding', label: 'Seeding', marker: '+', y: 374, group: 1 },
-      { kind: 'new-migration', label: 'New Migration #4', marker: '4', y: 546, group: 2 },
+      ...oldMigrations(),
+      { kind: 'seeding', label: 'Seeding', y: layout.correctedSeed, group: 1 },
+      ...newMigrations(layout.correctedNewMigrations, 2),
     ],
     status: 'success',
   },
   hero: {
     ...resetConflict,
     title: 'Supabase db reset corrected by Supabee',
-    description: 'The conflicting reset order is shown first, then the data dump moves before Migration 4 and the reset succeeds.',
+    description: 'The conflicting reset order is shown first, then the data dump moves before new Migrations 3 and 4 and the reset succeeds.',
     loopTitle: { initial: 'supabase db reset', corrected: 'supabee db reset' },
     extraConnectors: [
-      { id: 'corrected-connector-0', path: 'M480 282V374' },
-      { id: 'corrected-connector-1', path: 'M480 432V546' },
+      { id: 'corrected-connector-0', path: 'M480 198V290' },
+      { id: 'corrected-connector-1', path: 'M480 348V462' },
+      { id: 'corrected-connector-2', path: 'M480 522V546' },
     ],
     phases: [
       {
@@ -101,7 +122,7 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
         waitAfter: 350,
       },
       {
-        actions: [{ type: 'hide', targets: ['step-3', 'connector-2', 'connector-3', 'status'] }],
+        actions: [{ type: 'hide', targets: ['step-2', 'step-3', 'connector-1', 'connector-2', 'connector-3', 'status'] }],
         waitAfter: 350,
       },
       {
@@ -110,7 +131,7 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
       },
       {
         actions: [
-          { type: 'move', targets: ['highlight-1', 'step-4'], y: -160 },
+          { type: 'move', targets: ['highlight-1', 'step-4'], y: -244 },
           { type: 'seed-success', target: 'step-4' },
           { type: 'show', targets: ['corrected-connector-0'] },
         ],
@@ -118,13 +139,20 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
       },
       {
         actions: [
-          { type: 'move', targets: ['step-3'], y: 196, show: true },
+          { type: 'move', targets: ['step-2'], y: 196, show: true },
           { type: 'show', targets: ['corrected-connector-1'] },
+        ],
+        waitAfter: 190,
+      },
+      {
+        actions: [
+          { type: 'move', targets: ['step-3'], y: 196, show: true },
+          { type: 'show', targets: ['corrected-connector-2'] },
         ],
         waitAfter: 450,
       },
       {
-        actions: [{ type: 'status', target: 'status', kind: 'success', y: 51 }],
+        actions: [{ type: 'status', target: 'status', kind: 'success', y: -33 }],
         waitAfter: 2200,
       },
     ],

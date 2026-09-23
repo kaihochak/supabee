@@ -15,9 +15,10 @@ const titleId = `${id}-title`;
 const descriptionId = `${id}-description`;
 const groupStart = (group: number) => 120 + group * timing.groupPause;
 const delayFor = (step: DiagramStep, index: number) => groupStart(step.group) + config.steps.slice(0, index).filter((item) => item.group === step.group).length * timing.stepGap;
-const statusDelay = groupStart(Math.max(...config.steps.map((step) => step.group)) + 1) - timing.statusPause;
-const statusBefore = config.steps.at(-2)!;
-const statusAfter = config.steps.at(-1)!;
+const finalGroup = Math.max(...config.steps.map((step) => step.group));
+const statusDelay = groupStart(finalGroup + 1) - timing.statusPause;
+const statusBefore = config.steps.filter((step) => step.group === finalGroup - 1).at(-1)!;
+const statusAfter = config.steps.find((step) => step.group === finalGroup)!;
 const highlightFor = (group: number) => config.highlight.find((highlight) => highlight.groups.includes(group));
 const beforeHighlight = highlightFor(statusBefore.group);
 const afterHighlight = highlightFor(statusAfter.group);
@@ -27,6 +28,12 @@ const statusY = (beforeEdge + afterEdge) / 2;
 const labelWidth = (label: string) => label.length * 9 + 38;
 const [titleBrand, ...titleCommand] = config.title.split(' ');
 const titleBrandColor = titleBrand === 'supabee' ? 'var(--warning)' : 'var(--brand-strong)';
+const highlightX = 180;
+const highlightWidth = 600;
+const migrationX = 220;
+const migrationWidth = 520;
+const seedX = 245;
+const seedWidth = 470;
 const seedStyle = (failed = false) => failed
   ? { fill: '#fff1f0', stroke: '#e6aaa6', icon: '#b93630', text: '#912e29' }
   : { fill: '#edf8f1', stroke: '#9bc8aa', icon: '#318153', text: '#245f3d' };
@@ -67,9 +74,9 @@ const seedStyle = (failed = false) => failed
       const delay = groupStart(group.groups[0]);
       return (
         <g data-node={`highlight-${index}`} data-sequence-node data-kind="item" data-delay={delay}>
-          <rect x="140" y={group.y} width="680" height={group.height} rx="22" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
-          <rect x="166" y={group.y - 13} width={width} height="30" rx="15" fill="#318153" />
-          <text x={166 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill="#fff">{group.label}</text>
+          <rect x={highlightX} y={group.y} width={highlightWidth} height={group.height} rx="22" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
+          <rect x={highlightX + 26} y={group.y - 13} width={width} height="30" rx="15" fill="#318153" />
+          <text x={highlightX + 26 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill="#fff">{group.label}</text>
         </g>
       );
     })}
@@ -101,20 +108,23 @@ const seedStyle = (failed = false) => failed
           const colors = seedStyle(step.failed);
           return (
             <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class="diagram-seed">
-              <rect data-seed-role="surface" x="205" y={step.y} width="550" height="58" rx="29" fill={colors.fill} stroke={colors.stroke} stroke-width="2" />
-              <ellipse data-seed-role="icon" cx="246" cy={step.y + 23} rx="13" ry="6" fill="none" stroke={colors.icon} stroke-width="2" />
-              <path data-seed-role="icon" d={`M233 ${step.y + 23}v12c0 3 6 6 13 6s13-3 13-6V${step.y + 23}`} fill="none" stroke={colors.icon} stroke-width="2" />
-              <text data-seed-role="text" x="282" y={step.y + 37} font-size="21" font-weight="400" fill={colors.text}>{step.label}</text>
+              <rect data-seed-role="surface" x={seedX} y={step.y} width={seedWidth} height="58" rx="29" fill={colors.fill} stroke={colors.stroke} stroke-width="2" />
+              <ellipse data-seed-role="icon" cx={seedX + 41} cy={step.y + 23} rx="13" ry="6" fill="none" stroke={colors.icon} stroke-width="2" />
+              <path data-seed-role="icon" d={`M${seedX + 28} ${step.y + 23}v12c0 3 6 6 13 6s13-3 13-6V${step.y + 23}`} fill="none" stroke={colors.icon} stroke-width="2" />
+              <text data-seed-role="text" x={seedX + 77} y={step.y + 37} font-size="21" font-weight="400" fill={colors.text}>{step.label}</text>
             </g>
           );
         }
         const isNew = step.kind === 'new-migration';
         return (
           <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class:list={{ 'diagram-new': isNew }}>
-            <rect x="180" y={step.y} width="600" height="60" rx="12" fill={isNew ? '#fff4d8' : '#fff'} stroke={isNew ? '#cf8a16' : '#dce4e0'} stroke-width={isNew ? 3 : 2} />
-            <circle cx="222" cy={step.y + 30} r="15" fill={isNew ? '#ad6e0a' : '#eef2f0'} />
-            <text x="222" y={step.y + 36} text-anchor="middle" font-size="15" font-weight="500" fill={isNew ? '#fff' : '#6d7974'}>{step.marker}</text>
-            <text x="258" y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill={isNew ? '#6f4608' : '#202623'}>{step.label}</text>
+            <rect x={migrationX} y={step.y} width={migrationWidth} height="60" rx="12" fill={isNew ? '#fff4d8' : '#fff'} stroke={isNew ? '#cf8a16' : '#dce4e0'} stroke-width={isNew ? 3 : 2} />
+            <g fill="none" stroke={isNew ? '#ad6e0a' : '#6d7974'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d={`M${migrationX + 27} ${step.y + 17}h14l8 8v18h-22z`} />
+              <path d={`M${migrationX + 41} ${step.y + 17}v8h8`} />
+              <path d={`M${migrationX + 33} ${step.y + 32}h10M${migrationX + 33} ${step.y + 38}h8`} />
+            </g>
+            <text x={migrationX + 68} y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill={isNew ? '#6f4608' : '#202623'}>{step.label}</text>
           </g>
         );
       })}

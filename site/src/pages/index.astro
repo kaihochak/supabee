@@ -158,7 +158,6 @@ alter table public.orders add column status_id bigint not null default 1;`;
             class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 bg-code p-5 font-mono text-code-foreground shadow-lg"><code>Applying migration 20260310090000_replace_order_status.sql...
 Seeding data from supabase/seed.sql...
 ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</code></pre>
-          <MigrationSequence variant="reset-conflict" class="my-8" />
 
           <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">
             Inconsistent with <code class="text-code-ui font-mono"
@@ -182,7 +181,12 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
               >db reset</code
             > expects the seed to fit a schema that changed after the data was dumped.
           </p>
-          <MigrationSequence variant="db-push" class="my-8" />
+          <div
+            class="relative left-1/2 my-8 grid w-[calc(100vw-2.5rem)] max-w-5xl -translate-x-1/2 md:grid-cols-2 md:items-start"
+          >
+            <MigrationSequence variant="reset-conflict" class="min-w-0" />
+            <MigrationSequence variant="db-push" class="min-w-0" />
+          </div>
 
           <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">
             The solution

@@ -43,7 +43,7 @@ const seedStyle = (failed = false) => failed
 <figure class:list={['migration-diagram mx-auto w-full max-w-sm', className]}>
   {config.loopTitle
     ? (
-      <figcaption data-node="loop-title" data-initial-text={config.loopTitle.initial} class="text-title mb-4 text-center text-foreground">
+      <figcaption data-node="loop-title" data-initial-text={config.loopTitle.initial} class="text-heading mb-6 text-center text-foreground">
         <span class="relative inline-block">
           <span data-loop-brand style="color: var(--diagram-brand)">supabase</span><span data-loop-command> db reset</span>
           <span data-loop-strike aria-hidden="true" class="absolute inset-x-0 top-1/2 origin-left bg-current" style="height: 2px; transform: scaleX(0);"></span>
@@ -51,15 +51,15 @@ const seedStyle = (failed = false) => failed
       </figcaption>
     )
     : showTitle && (
-      <figcaption class="text-title mb-4 text-center text-foreground">
+      <figcaption class="text-heading mb-6 text-center text-foreground">
         <span style={`color: ${titleBrandColor}`}>{titleBrand}</span> {titleCommand.join(' ')}
       </figcaption>
     )}
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="580"
+    width="440"
     height={config.height}
-    viewBox={`190 0 580 ${config.height}`}
+    viewBox={`260 0 440 ${config.height}`}
     role="img"
     aria-labelledby={`${titleId} ${descriptionId}`}
     class="h-auto w-full"

@@ -37,24 +37,24 @@ const orders = [
     )}
     <thead class="bg-muted/60">
       <tr>
-        <th scope="col" class="break-all px-1.5 py-1.5 font-mono font-normal text-foreground">id</th>
-        <th scope="col" class="break-all px-1.5 py-1.5 font-mono font-normal text-foreground">customer_id</th>
-        <th scope="col" class="break-all px-1.5 py-1.5 font-mono font-normal text-foreground">total</th>
+        <th scope="col" class="break-all px-1.5 py-1.5 font-mono text-foreground">id</th>
+        <th scope="col" class="break-all px-1.5 py-1.5 font-mono text-foreground">customer_id</th>
+        <th scope="col" class="break-all px-1.5 py-1.5 font-mono text-foreground">total</th>
         {afterMigration ? (
           <>
-            <th scope="col" class="bg-danger/10 px-1.5 py-1.5 font-mono font-normal text-danger">
+            <th scope="col" class="bg-danger/10 px-1.5 py-1.5 font-mono text-danger">
               <span class="block">status</span>
             </th>
-            <th scope="col" class="bg-brand/10 px-1.5 py-1.5 font-mono font-normal text-brand-strong">
+            <th scope="col" class="bg-brand/10 px-1.5 py-1.5 font-mono text-brand-strong">
               <span class="block break-all">status_id</span>
             </th>
           </>
         ) : conflict ? (
-          <th scope="col" class="bg-brand/10 px-1.5 py-1.5 font-mono font-normal text-brand-strong">
+          <th scope="col" class="bg-brand/10 px-1.5 py-1.5 font-mono text-brand-strong">
             <span class="block break-all">status_id</span>
           </th>
         ) : (
-          <th scope="col" class="px-1.5 py-1.5 font-mono font-normal text-foreground">status</th>
+          <th scope="col" class="px-1.5 py-1.5 font-mono text-foreground">status</th>
         )}
       </tr>
     </thead>

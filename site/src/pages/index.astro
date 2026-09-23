@@ -41,7 +41,7 @@ alter table public.orders add column status_id bigint not null default 1;`;
             migrations around your seed data in the right order.
           </p>
           <div
-            class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start"
+            class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start"
           >
             <a
               href="/docs/getting-started/"
@@ -55,7 +55,7 @@ alter table public.orders add column status_id bigint not null default 1;`;
             >
           </div>
         </div>
-        <ResetSequenceComparison class="mx-auto w-full text-left" showTitles={false} />
+        <ResetSequenceComparison class="mx-auto w-full text-left" />
       </div>
     </section>
 
@@ -103,68 +103,53 @@ alter table public.orders add column status_id bigint not null default 1;`;
             class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg"
           />
           <p class="text-body my-4 text-foreground">
-            Applying this directly with <code
+            Testing locally with <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >supabase migration up</code
+            > succeeds. <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >supabase db push</code
-            > works:
+            > would work against the existing database too:
           </p>
           <OrdersTable variant="after-migration" />
 
-          <p class="text-body my-4 text-foreground">
-            And <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase migration up</code
-            > also succeeds, so the issue may go unnoticed until CI runs <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db reset</code
-            > after you push, or a teammate runs a reset locally.
-          </p>
-
-          <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">
-            Seed Conflict
+          <h3 class="text-heading mb-3 mt-14 scroll-mt-24 text-foreground">
+            The problem
           </h3>
 
           <p class="text-body my-4 text-foreground">
-            During reset, migrations run against an empty database. The migration
-            replaces <code
+            After you push the migration, CI may run <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status</code
-            > with <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status_id</code>; the seed still supplies these old <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status</code
-            > values:
+              >supabase db reset</code
+            >, or a teammate may run it locally. Reset reloads the seed, exposing
+            a problem the earlier migration checks did not catch.
           </p>
-          <OrdersTable variant="seed-conflict" />
           <p class="text-body my-4 text-foreground">
-            The seed's <code
+            The <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >status</code
-            > column no longer exists, so reset fails while loading the seed:
+            > column no longer exists because the migration already replaced it
+            with <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >status_id</code
+            > before seeding. You may get an error like this:
           </p>
           <pre
             class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 bg-code p-5 font-mono text-code-foreground shadow-lg"><code>Applying migration 20260310090000_replace_order_status.sql...
 Seeding data from supabase/seed.sql...
 ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</code></pre>
-
-          <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">
-            Inconsistent with <code class="text-code-ui font-mono"
-              >db push</code>
-          </h3>
+          <OrdersTable variant="seed-conflict" />
           <p class="text-body my-4 text-foreground">
-            With <code
+            The difference is the sequence: <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >db push</code
-            >, the migration updates the existing database; the seed is not reloaded.
-            <code
+              >supabase db reset</code
+            > applies every migration first, then loads the seed. <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >db reset</code
-            > replays migrations and then loads the seed. Because that seed still
-            targets <code
+              >supabase db push</code
+            > and <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status</code
-            >, which the migration removed, reset fails.
+              >supabase migration up</code
+            > apply migrations to the existing database without reloading the seed.
           </p>
           <div
             class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
@@ -176,18 +161,14 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
               aria-label="Different execution order"
             >
               <span class="h-px flex-1 bg-border md:hidden"></span>
-              <span
-                aria-hidden="true"
-                class="text-heading flex size-9 items-center justify-center rounded-full border border-danger/40 bg-danger/10"
-                >≠</span
-              >
+              <span aria-hidden="true" class="text-title font-mono text-danger">≠</span>
               <span class="text-label md:sr-only">Different order</span>
               <span class="h-px flex-1 bg-border md:hidden"></span>
             </div>
             <MigrationSequence variant="db-push" class="min-w-0" />
           </div>
 
-          <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">
+          <h3 class="text-heading mb-3 mt-14 scroll-mt-24 text-foreground">
             The solution
           </h3>
           <p class="text-body my-4 text-foreground">

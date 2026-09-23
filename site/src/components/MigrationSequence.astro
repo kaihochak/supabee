@@ -75,14 +75,14 @@ const seedStyle = (failed = false) => failed
       const delay = groupStart(group.groups[0]);
       return (
         <g data-node={`highlight-${index}`} data-sequence-node data-kind="item" data-delay={delay}>
-          <rect x={highlightX} y={group.y} width={highlightWidth} height={group.height} rx="22" fill="color-mix(in oklab, var(--success) 12%, var(--card))" stroke="var(--success)" stroke-width="2" />
+          <rect x={highlightX} y={group.y} width={highlightWidth} height={group.height} rx="22" fill="color-mix(in oklab, var(--success) 12%, var(--card))" stroke="var(--success)" stroke-width="0.25" />
           <rect x={highlightX + 26} y={group.y - 13} width={width} height="30" rx="15" fill="var(--success)" />
           <text x={highlightX + 26 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill="var(--card)">{group.label}</text>
         </g>
       );
     })}
 
-    <g fill="none" stroke="var(--border)" stroke-width="2">
+    <g fill="none" stroke="var(--border)" stroke-width="1">
       {config.steps.slice(0, -1).map((step, index) => {
         const nextStep = config.steps[index + 1];
         const delay = delayFor(nextStep, index + 1) - 130;
@@ -109,9 +109,9 @@ const seedStyle = (failed = false) => failed
           const colors = seedStyle(step.failed);
           return (
             <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class="diagram-seed">
-              <rect data-seed-role="surface" x={seedX} y={step.y} width={seedWidth} height="58" rx="29" fill={colors.fill} stroke={colors.stroke} stroke-width="2" />
-              <ellipse data-seed-role="icon" cx={seedX + 24} cy={step.y + 23} rx="11" ry="5" fill="none" stroke={colors.icon} stroke-width="2" />
-              <path data-seed-role="icon" d={`M${seedX + 13} ${step.y + 23}v11c0 3 5 5 11 5s11-2 11-5V${step.y + 23}`} fill="none" stroke={colors.icon} stroke-width="2" />
+              <rect data-seed-role="surface" x={seedX} y={step.y} width={seedWidth} height="58" rx="29" fill={colors.fill} stroke={colors.stroke} stroke-width="0.25" />
+              <ellipse data-seed-role="icon" cx={seedX + 24} cy={step.y + 23} rx="11" ry="5" fill="none" stroke={colors.icon} stroke-width="0.5" />
+              <path data-seed-role="icon" d={`M${seedX + 13} ${step.y + 23}v11c0 3 5 5 11 5s11-2 11-5V${step.y + 23}`} fill="none" stroke={colors.icon} stroke-width="0.5" />
               <text data-seed-role="text" x={seedX + 56} y={step.y + 37} font-size="21" font-weight="400" fill={colors.text}>{step.label}</text>
             </g>
           );
@@ -119,8 +119,8 @@ const seedStyle = (failed = false) => failed
         const isNew = step.kind === 'new-migration';
         return (
           <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class:list={{ 'diagram-new': isNew }}>
-            <rect x={migrationX} y={step.y} width={migrationWidth} height="60" rx="12" fill={isNew ? 'color-mix(in oklab, var(--warning) 18%, var(--card))' : 'var(--card)'} stroke={isNew ? 'var(--warning)' : 'var(--border)'} stroke-width={isNew ? 3 : 2} />
-            <g fill="none" stroke={isNew ? 'var(--warning)' : 'var(--muted-foreground)'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x={migrationX} y={step.y} width={migrationWidth} height="60" rx="12" fill={isNew ? 'color-mix(in oklab, var(--warning) 18%, var(--card))' : 'var(--card)'} stroke={isNew ? 'var(--warning)' : 'var(--border)'} stroke-width="0.25" />
+            <g fill="none" stroke={isNew ? 'var(--warning)' : 'var(--muted-foreground)'} stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round">
               <path d={`M${migrationX + 16} ${step.y + 17}h14l8 8v18h-22z`} />
               <path d={`M${migrationX + 30} ${step.y + 17}v8h8`} />
               <path d={`M${migrationX + 22} ${step.y + 32}h10M${migrationX + 22} ${step.y + 38}h8`} />
@@ -139,7 +139,7 @@ const seedStyle = (failed = false) => failed
       </g>
       <g data-status-kind="success" opacity={config.status === 'success' ? 1 : 0}>
         <circle cx="480" cy={statusY} r="18" fill="var(--success)" />
-        <path d={`M472 ${statusY}l5 5 11-12`} fill="none" stroke="var(--card)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        <path d={`M472 ${statusY}l5 5 11-12`} fill="none" stroke="var(--card)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <text x="514" y={statusY + 7} font-size="18" font-weight="500" fill="var(--success)">Success</text>
       </g>
     </g>

@@ -118,9 +118,18 @@ const applyAction = (svg: SVGElement, action: Action) => {
     const icons = target.querySelectorAll('[data-seed-role="icon"]');
     const text = target.querySelector('[data-seed-role="text"]');
     return [
-      surface ? run(surface, [{ fill: '#fff1f0', stroke: '#e6aaa6' }, { fill: '#edf8f1', stroke: '#9bc8aa' }]) : Promise.resolve(),
-      ...Array.from(icons, (icon) => run(icon, [{ stroke: '#b93630' }, { stroke: '#318153' }])),
-      text ? run(text, [{ fill: '#912e29' }, { fill: '#245f3d' }]) : Promise.resolve(),
+      surface ? run(surface, [
+        { fill: 'color-mix(in oklab, var(--danger) 12%, var(--card))', stroke: 'var(--danger)' },
+        { fill: 'color-mix(in oklab, var(--success) 12%, var(--card))', stroke: 'var(--success)' },
+      ]) : Promise.resolve(),
+      ...Array.from(icons, (icon) => run(icon, [
+        { stroke: 'var(--danger)' },
+        { stroke: 'var(--success)' },
+      ])),
+      text ? run(text, [
+        { fill: 'var(--danger)' },
+        { fill: 'var(--success)' },
+      ]) : Promise.resolve(),
     ];
   }
 

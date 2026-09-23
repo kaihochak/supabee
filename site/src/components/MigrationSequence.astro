@@ -36,8 +36,8 @@ const migrationWidth = 340;
 const seedX = 310;
 const seedWidth = 340;
 const seedStyle = (failed = false) => failed
-  ? { fill: '#fff1f0', stroke: '#e6aaa6', icon: '#b93630', text: '#912e29' }
-  : { fill: '#edf8f1', stroke: '#9bc8aa', icon: '#318153', text: '#245f3d' };
+  ? { fill: 'color-mix(in oklab, var(--danger) 12%, var(--card))', stroke: 'var(--danger)', icon: 'var(--danger)', text: 'var(--danger)' }
+  : { fill: 'color-mix(in oklab, var(--success) 12%, var(--card))', stroke: 'var(--success)', icon: 'var(--success)', text: 'var(--success)' };
 ---
 
 <figure class:list={['migration-diagram mx-auto w-full max-w-sm', className]}>
@@ -75,14 +75,14 @@ const seedStyle = (failed = false) => failed
       const delay = groupStart(group.groups[0]);
       return (
         <g data-node={`highlight-${index}`} data-sequence-node data-kind="item" data-delay={delay}>
-          <rect x={highlightX} y={group.y} width={highlightWidth} height={group.height} rx="22" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
-          <rect x={highlightX + 26} y={group.y - 13} width={width} height="30" rx="15" fill="#318153" />
-          <text x={highlightX + 26 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill="#fff">{group.label}</text>
+          <rect x={highlightX} y={group.y} width={highlightWidth} height={group.height} rx="22" fill="color-mix(in oklab, var(--success) 12%, var(--card))" stroke="var(--success)" stroke-width="2" />
+          <rect x={highlightX + 26} y={group.y - 13} width={width} height="30" rx="15" fill="var(--success)" />
+          <text x={highlightX + 26 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill="var(--card)">{group.label}</text>
         </g>
       );
     })}
 
-    <g fill="none" stroke="#dce4e0" stroke-width="2">
+    <g fill="none" stroke="var(--border)" stroke-width="2">
       {config.steps.slice(0, -1).map((step, index) => {
         const nextStep = config.steps[index + 1];
         const delay = delayFor(nextStep, index + 1) - 130;
@@ -119,13 +119,13 @@ const seedStyle = (failed = false) => failed
         const isNew = step.kind === 'new-migration';
         return (
           <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class:list={{ 'diagram-new': isNew }}>
-            <rect x={migrationX} y={step.y} width={migrationWidth} height="60" rx="12" fill={isNew ? '#fff4d8' : '#fff'} stroke={isNew ? '#cf8a16' : '#dce4e0'} stroke-width={isNew ? 3 : 2} />
-            <g fill="none" stroke={isNew ? '#ad6e0a' : '#6d7974'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x={migrationX} y={step.y} width={migrationWidth} height="60" rx="12" fill={isNew ? 'color-mix(in oklab, var(--warning) 18%, var(--card))' : 'var(--card)'} stroke={isNew ? 'var(--warning)' : 'var(--border)'} stroke-width={isNew ? 3 : 2} />
+            <g fill="none" stroke={isNew ? 'var(--warning)' : 'var(--muted-foreground)'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d={`M${migrationX + 16} ${step.y + 17}h14l8 8v18h-22z`} />
               <path d={`M${migrationX + 30} ${step.y + 17}v8h8`} />
               <path d={`M${migrationX + 22} ${step.y + 32}h10M${migrationX + 22} ${step.y + 38}h8`} />
             </g>
-            <text x={migrationX + 56} y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill={isNew ? '#6f4608' : '#202623'}>{step.label}</text>
+            <text x={migrationX + 56} y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill="var(--foreground)">{step.label}</text>
           </g>
         );
       })}
@@ -133,14 +133,14 @@ const seedStyle = (failed = false) => failed
 
     <g data-node="status" data-sequence-node data-kind="status" data-delay={statusDelay} font-family="Inter, ui-sans-serif, system-ui, sans-serif">
       <g data-status-kind="conflict" opacity={config.status === 'conflict' ? 1 : 0}>
-        <circle cx="480" cy={statusY} r="18" fill="#dc4c43" />
-        <text x="480" y={statusY + 7} text-anchor="middle" font-size="20" font-weight="600" fill="#fff">!</text>
-        <text x="514" y={statusY + 7} font-size="18" font-weight="500" fill="#b93630">Conflict</text>
+        <circle cx="480" cy={statusY} r="18" fill="var(--danger)" />
+        <text x="480" y={statusY + 7} text-anchor="middle" font-size="20" font-weight="600" fill="var(--card)">!</text>
+        <text x="514" y={statusY + 7} font-size="18" font-weight="500" fill="var(--danger)">Conflict</text>
       </g>
       <g data-status-kind="success" opacity={config.status === 'success' ? 1 : 0}>
-        <circle cx="480" cy={statusY} r="18" fill="#318153" />
-        <path d={`M472 ${statusY}l5 5 11-12`} fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-        <text x="514" y={statusY + 7} font-size="18" font-weight="500" fill="#245f3d">Success</text>
+        <circle cx="480" cy={statusY} r="18" fill="var(--success)" />
+        <path d={`M472 ${statusY}l5 5 11-12`} fill="none" stroke="var(--card)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        <text x="514" y={statusY + 7} font-size="18" font-weight="500" fill="var(--success)">Success</text>
       </g>
     </g>
   </svg>
@@ -155,5 +155,5 @@ const seedStyle = (failed = false) => failed
 
 <style>
   svg { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-  .diagram-new > rect { filter: drop-shadow(0 7px 11px rgb(207 138 22 / 18%)); }
+  .diagram-new > rect { filter: drop-shadow(0 7px 11px color-mix(in oklab, var(--warning) 18%, transparent)); }
 </style>

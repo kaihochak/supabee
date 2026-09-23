@@ -14,7 +14,9 @@ type TransitionAction =
   | { type: 'hide' | 'show'; targets: string[] }
   | { type: 'move'; targets: string[]; y: number; show?: boolean }
   | { type: 'seed-success'; target: string }
-  | { type: 'status'; target: string; kind: 'success'; y: number };
+  | { type: 'status'; target: string; kind: 'success'; y: number }
+  | { type: 'strike'; target: string }
+  | { type: 'label'; target: string; text: string };
 
 interface TransitionPhase {
   actions: TransitionAction[];
@@ -28,6 +30,7 @@ export interface DiagramConfig {
   highlight: Array<{ label: string; y: number; height: number; groups: number[] }>;
   steps: DiagramStep[];
   status: 'conflict' | 'success';
+  loopTitle?: { initial: string; corrected: string };
   extraConnectors?: Array<{ id: string; path: string }>;
   phases?: TransitionPhase[];
 }
@@ -87,6 +90,7 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     ...resetConflict,
     title: 'Supabase db reset corrected by Supabee',
     description: 'The conflicting reset order is shown first, then the data dump moves before Migration 4 and the reset succeeds.',
+    loopTitle: { initial: 'supabase db reset', corrected: 'supabee db reset' },
     extraConnectors: [
       { id: 'corrected-connector-0', path: 'M480 282V374' },
       { id: 'corrected-connector-1', path: 'M480 432V546' },
@@ -94,6 +98,14 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     phases: [
       {
         actions: [{ type: 'hide', targets: ['step-3', 'connector-2', 'connector-3', 'status'] }],
+        waitAfter: 350,
+      },
+      {
+        actions: [{ type: 'strike', target: 'loop-title' }],
+        waitAfter: 350,
+      },
+      {
+        actions: [{ type: 'label', target: 'loop-title', text: 'supabee db reset' }],
         waitAfter: 350,
       },
       {

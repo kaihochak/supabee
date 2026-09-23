@@ -2,14 +2,34 @@ type Action =
   | { type: 'hide' | 'show'; targets: string[] }
   | { type: 'move'; targets: string[]; y: number; show?: boolean }
   | { type: 'seed-success'; target: string }
-  | { type: 'status'; target: string; kind: 'success'; y: number };
+  | { type: 'status'; target: string; kind: 'success'; y: number }
+  | { type: 'strike'; target: string }
+  | { type: 'label'; target: string; text: string };
 
 type Phase = { actions: Action[]; waitAfter: number };
+type DiagramElement = SVGElement | HTMLElement;
 
 const pause = (duration: number) => new Promise((resolve) => setTimeout(resolve, duration));
-const findNode = (svg: SVGElement, id: string) => svg.querySelector<SVGElement>(`[data-node="${id}"]`);
+const findNode = (svg: SVGElement, id: string) => svg.closest('figure')?.querySelector<DiagramElement>(`[data-node="${id}"]`) ?? null;
 const run = (element: Element, frames: Keyframe[], duration = 520) =>
   element.animate(frames, { duration, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }).finished.catch(() => undefined);
+
+const setLoopTitle = (target: DiagramElement, value: string) => {
+  const [brand, ...command] = value.split(' ');
+  const brandElement = target.querySelector<HTMLElement>('[data-loop-brand]');
+  const commandElement = target.querySelector<HTMLElement>('[data-loop-command]');
+  if (!brandElement || !commandElement) return;
+  brandElement.textContent = brand;
+  const strike = document.createElement('span');
+  strike.dataset.loopStrike = '';
+  strike.setAttribute('aria-hidden', 'true');
+  strike.className = 'absolute inset-x-0 top-1/2 origin-left bg-current';
+  strike.style.height = '2px';
+  strike.style.transform = 'scaleX(0)';
+  brandElement.append(strike);
+  brandElement.style.color = brand === 'supabee' ? 'var(--warning)' : 'var(--brand-strong)';
+  commandElement.textContent = ` ${command.join(' ')}`;
+};
 
 const reset = (svg: SVGElement) => {
   svg.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
@@ -29,6 +49,11 @@ const reset = (svg: SVGElement) => {
   svg.querySelectorAll<SVGElement>('[data-status-kind]').forEach((element) => {
     element.style.opacity = element.dataset.statusKind === svg.dataset.initialStatus ? '1' : '0';
   });
+  const loopTitle = findNode(svg, 'loop-title') as HTMLElement | null;
+  if (loopTitle?.dataset.initialText) {
+    setLoopTitle(loopTitle, loopTitle.dataset.initialText);
+    loopTitle.style.opacity = '1';
+  }
 };
 
 const playEntrance = async (svg: SVGElement) => {
@@ -49,6 +74,22 @@ const playEntrance = async (svg: SVGElement) => {
 };
 
 const applyAction = (svg: SVGElement, action: Action) => {
+  if (action.type === 'strike') {
+    const target = findNode(svg, action.target);
+    const strike = target?.querySelector('[data-loop-strike]');
+    return strike ? [run(strike, [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 320)] : [];
+  }
+
+  if (action.type === 'label') {
+    const target = findNode(svg, action.target);
+    if (!target) return [];
+    return [(async () => {
+      await run(target, [{ opacity: 1 }, { opacity: 0 }], 220);
+      setLoopTitle(target, action.text);
+      await run(target, [{ opacity: 0 }, { opacity: 1 }], 260);
+    })()];
+  }
+
   if (action.type === 'hide' || action.type === 'show') {
     return action.targets.flatMap((id) => {
       const target = findNode(svg, id);

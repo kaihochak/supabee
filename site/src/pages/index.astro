@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Header from "../components/Header.astro";
+import OrdersTable from "../components/OrdersTable.astro";
 import MigrationSequence from "../components/MigrationSequence.astro";
 import ResetSequenceComparison from "../components/ResetSequenceComparison.astro";
 import { Code } from "astro:components";
@@ -64,7 +65,7 @@ alter table public.orders add column status_id bigint not null default 1;`;
           <p class="text-overline mb-3 uppercase text-brand-strong">
             Why Supabee
           </p>
-          <h2 class="text-display">The problems Supabee solves.</h2>
+          <h2 class="text-display">The problems <span class="text-brand-strong">Supabee</span> solves.</h2>
         </header>
         <div class="mx-auto max-w-7xl">
           <section
@@ -77,18 +78,19 @@ alter table public.orders add column status_id bigint not null default 1;`;
               >supabee db reset <span aria-hidden="true" class="text-label align-super">↗</span></a>
             </h2>
             <div class="min-w-0">
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             Say you are working on an order inventory system with a table like
             this:
           </p>
-          <Code
+          <!-- <Code
             code={ordersSchema}
             lang="sql"
             theme="github-dark"
             class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg"
-          />
+          /> -->
+          <OrdersTable variant="initial" />
 
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             A new requirement replaces the <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >status</code
@@ -100,16 +102,46 @@ alter table public.orders add column status_id bigint not null default 1;`;
             theme="github-dark"
             class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg"
           />
+          <p class="text-body my-4 text-foreground">
+            Applying this directly with <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >supabase db push</code
+            > works:
+          </p>
+          <OrdersTable variant="after-migration" />
 
-          <p class="text-body my-4 text-muted-foreground">
-            Now <code
+          <p class="text-body my-4 text-foreground">
+            And <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >supabase migration up</code
+            > also succeeds, so the issue may go unnoticed until CI runs <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >supabase db reset</code
-            > runs every migration first, then loads the seed. The seed still fills
-            <code
+            > after you push, or a teammate runs a reset locally.
+          </p>
+
+          <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">
+            Seed Conflict
+          </h3>
+
+          <p class="text-body my-4 text-foreground">
+            During reset, migrations run against an empty database. The migration
+            replaces <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >status</code
-            >, but the migration has already dropped it:
+            > with <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >status_id</code>; the seed still supplies these old <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >status</code
+            > values:
+          </p>
+          <OrdersTable variant="seed-conflict" />
+          <p class="text-body my-4 text-foreground">
+            The seed's <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >status</code
+            > column no longer exists, so reset fails while loading the seed:
           </p>
           <pre
             class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 bg-code p-5 font-mono text-code-foreground shadow-lg"><code>Applying migration 20260310090000_replace_order_status.sql...
@@ -120,23 +152,19 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             Inconsistent with <code class="text-code-ui font-mono"
               >db push</code>
           </h3>
-          <p class="text-body my-4 text-muted-foreground">
-            This does not happen in the same order when you deploy. <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db push</code
-            > and <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase migration up</code
-            > apply the new migration to a database that already contains its data.
-          </p>
-          <p class="text-body my-4 text-muted-foreground">
-            <code
+          <p class="text-body my-4 text-foreground">
+            With <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >db push</code
-            > runs against rows that already exist, while <code
+            >, the migration updates the existing database; the seed is not reloaded.
+            <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >db reset</code
-            > expects the seed to fit a schema that changed after the data was dumped.
+            > replays migrations and then loads the seed. Because that seed still
+            targets <code
+              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+              >status</code
+            >, which the migration removed, reset fails.
           </p>
           <div
             class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
@@ -162,7 +190,7 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
           <h3 class="text-heading mb-3 mt-8 scroll-mt-24 text-foreground">
             The solution
           </h3>
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >supabee db reset</code
@@ -170,7 +198,7 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             first. Once the database looks like production, it restores and applies
             the new migrations on top.
           </p>
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             That mirrors how migration scripts reach the production database, so
             one run checks both that the local reset works and that the new
             migrations can be deployed.
@@ -189,7 +217,7 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
               >supabee sync data <span aria-hidden="true" class="text-label align-super">↗</span></a>
             </h2>
             <div class="min-w-0">
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >supabase db dump --data-only</code
@@ -197,7 +225,7 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             of rows, any table change becomes a diff inside the same enormous file,
             and reproducing a bug starts with finding the right rows inside it.
           </p>
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >supabee sync data</code
@@ -218,11 +246,11 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
               >supabee sync schema <span aria-hidden="true" class="text-label align-super">↗</span></a>
             </h2>
             <div class="min-w-0">
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             A schema dump has the same problem: every table, function, type,
             policy, trigger, view, and index arrives in one file.
           </p>
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             <code
               class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
               >supabee sync schema</code
@@ -233,7 +261,7 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             > records the full sequence so Supabee can rebuild the dump and verify
             that the result still matches.
           </p>
-          <p class="text-body my-4 text-muted-foreground">
+          <p class="text-body my-4 text-foreground">
             You get per-object schema files without having to work out the
             dependency order yourself.
           </p>
@@ -251,7 +279,7 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
         >
         <button
           data-copy="npm install -g supabee"
-          class="text-small shrink-0 rounded-lg border border-border bg-muted px-3 py-2 text-muted-foreground hover:text-foreground"
+          class="text-small shrink-0 rounded-lg border border-border bg-muted px-3 py-2 text-foreground hover:text-foreground"
           >Copy</button
         >
       </div>

@@ -17,11 +17,11 @@
   --text-title--line-height: 1.12;
   --text-title--letter-spacing: -0.025em;
   --text-title--font-weight: 350;
-  --text-heading: 1.125rem;
+  --text-heading: 1.5rem;
   --text-heading--line-height: 1.35;
   --text-heading--letter-spacing: -0.01em;
   --text-heading--font-weight: 350;
-  --text-body: 1rem;
+  --text-body: 1.0625rem;
   --text-body--line-height: 1.75;
   --text-body--letter-spacing: 0;
   --text-body--font-weight: 300;
@@ -80,6 +80,7 @@
   /* Compatibility aliases used by the existing Astro pages. */
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
+  --color-diagram-brand: var(--diagram-brand);
   --color-code: var(--code);
   --color-code-foreground: var(--code-foreground);
   --color-success: var(--success);

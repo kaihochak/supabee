@@ -1,0 +1,85 @@
+---
+interface Props {
+  variant: "initial" | "after-migration" | "seed-conflict";
+}
+
+const { variant } = Astro.props;
+const afterMigration = variant === "after-migration";
+const conflict = variant === "seed-conflict";
+const orders = [
+  { id: "a12f…", customerId: "c38e…", total: "48.50", status: "pending" },
+  { id: "b74d…", customerId: "c38e…", total: "126.00", status: "paid" },
+  { id: "d09a…", customerId: "e51b…", total: "19.99", status: "cancelled" },
+];
+---
+
+<div class="my-6 w-full min-w-0 overflow-hidden rounded-xl border border-border bg-card">
+  <div class="border-b border-border px-3 py-2">
+    <h3 class="text-code-ui truncate font-mono text-foreground">public.orders</h3>
+  </div>
+
+  <table class="text-code-ui w-full table-fixed border-collapse text-left">
+    {afterMigration ? (
+      <colgroup>
+        <col class="w-[16%]" />
+        <col class="w-[24%]" />
+        <col class="w-[20%]" />
+        <col class="w-[20%]" />
+        <col class="w-[20%]" />
+      </colgroup>
+    ) : (
+      <colgroup>
+        <col class="w-[16%]" />
+        <col class="w-[24%]" />
+        <col class="w-[20%]" />
+        <col class="w-[40%]" />
+      </colgroup>
+    )}
+    <thead class="bg-muted/60">
+      <tr>
+        <th scope="col" class="break-all px-1.5 py-1.5 font-mono font-normal text-foreground">id</th>
+        <th scope="col" class="break-all px-1.5 py-1.5 font-mono font-normal text-foreground">customer_id</th>
+        <th scope="col" class="break-all px-1.5 py-1.5 font-mono font-normal text-foreground">total</th>
+        {afterMigration ? (
+          <>
+            <th scope="col" class="bg-danger/10 px-1.5 py-1.5 font-mono font-normal text-danger">
+              <span class="block">status</span>
+            </th>
+            <th scope="col" class="bg-brand/10 px-1.5 py-1.5 font-mono font-normal text-brand-strong">
+              <span class="block break-all">status_id</span>
+            </th>
+          </>
+        ) : conflict ? (
+          <th scope="col" class="bg-brand/10 px-1.5 py-1.5 font-mono font-normal text-brand-strong">
+            <span class="block break-all">status_id</span>
+          </th>
+        ) : (
+          <th scope="col" class="px-1.5 py-1.5 font-mono font-normal text-foreground">status</th>
+        )}
+      </tr>
+    </thead>
+    <tbody>
+      {orders.map((order, index) => (
+        <tr>
+          <td class:list={["break-all px-1.5 py-1.5 font-mono text-muted-foreground", index < orders.length - 1 && "border-b border-border"]}>{order.id}</td>
+          <td class:list={["break-all px-1.5 py-1.5 font-mono text-muted-foreground", index < orders.length - 1 && "border-b border-border"]}>{order.customerId}</td>
+          <td class:list={["break-all px-1.5 py-1.5 font-mono text-muted-foreground", index < orders.length - 1 && "border-b border-border"]}>{order.total}</td>
+          {afterMigration ? (
+            <>
+              <td class:list={["break-words bg-danger/5 px-1.5 py-1.5 font-mono text-danger line-through", index < orders.length - 1 && "border-b border-border"]}>{order.status}</td>
+              <td class:list={["bg-brand/5 px-1.5 py-1.5 font-mono text-brand-strong", index < orders.length - 1 && "border-b border-border"]}>1</td>
+            </>
+          ) : conflict ? (
+            <td class:list={["break-words bg-danger/15 px-1.5 py-1.5 font-mono text-danger", index < orders.length - 1 && "border-b border-border"]}>{order.status}</td>
+          ) : (
+            <td class:list={["break-words px-1.5 py-1.5", index < orders.length - 1 && "border-b border-border"]}>
+              <span class:list={["inline-block rounded-full border px-1.5 py-0.5 font-mono", order.status === "cancelled" ? "border-danger/30 bg-danger/10 text-danger" : "border-success/30 bg-success/10 text-success"]}>
+                {order.status}
+              </span>
+            </td>
+          )}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>

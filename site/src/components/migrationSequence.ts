@@ -42,7 +42,7 @@ const migrations = (group = 0): DiagramStep[] => [
 ];
 
 const resetConflict: DiagramConfig = {
-  title: 'Supabase db reset conflict',
+  title: 'supabase db reset',
   description: 'The schema dump is restored, Migration 4 changes it, and the older data dump then conflicts with that changed schema.',
   height: 650,
   highlight: [
@@ -60,7 +60,7 @@ const resetConflict: DiagramConfig = {
 export const diagrams: Record<DiagramVariant, DiagramConfig> = {
   'reset-conflict': resetConflict,
   'db-push': {
-    title: 'Supabase db push',
+    title: 'supabase db push',
     description: 'Migrations 1 through 3 and the existing data form the live database before Migration 4 is applied successfully.',
     height: 560,
     highlight: [{ label: 'Live database', y: 20, height: 378, groups: [0, 1] }],
@@ -72,7 +72,7 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     status: 'success',
   },
   'supabee-reset': {
-    title: 'Supabee db reset',
+    title: 'supabee db reset',
     description: 'Supabee restores the schema dump, loads the data dump, and only then applies Migration 4 successfully.',
     height: 630,
     highlight: [

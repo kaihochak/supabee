@@ -25,6 +25,8 @@ const beforeEdge = beforeHighlight ? beforeHighlight.y + beforeHighlight.height 
 const afterEdge = afterHighlight ? afterHighlight.y : statusAfter.y;
 const statusY = (beforeEdge + afterEdge) / 2;
 const labelWidth = (label: string) => label.length * 9 + 38;
+const [titleBrand, ...titleCommand] = config.title.split(' ');
+const titleBrandColor = titleBrand === 'supabee' ? 'var(--warning)' : 'var(--brand-strong)';
 const seedStyle = (failed = false) => failed
   ? { fill: '#fff1f0', stroke: '#e6aaa6', icon: '#b93630', text: '#912e29' }
   : { fill: '#edf8f1', stroke: '#9bc8aa', icon: '#318153', text: '#245f3d' };
@@ -40,7 +42,11 @@ const seedStyle = (failed = false) => failed
         </span>
       </figcaption>
     )
-    : showTitle && <figcaption class="text-label mb-3 text-center text-foreground">{config.title}</figcaption>}
+    : showTitle && (
+      <figcaption class="text-title mb-4 text-center text-foreground">
+        <span style={`color: ${titleBrandColor}`}>{titleBrand}</span> {titleCommand.join(' ')}
+      </figcaption>
+    )}
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="960"

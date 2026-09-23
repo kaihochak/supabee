@@ -28,7 +28,7 @@ const afterEdge = afterHighlight ? afterHighlight.y : statusAfter.y;
 const statusY = (beforeEdge + afterEdge) / 2;
 const labelWidth = (label: string) => label.length * 9 + 38;
 const [titleBrand, ...titleCommand] = config.title.split(' ');
-const titleBrandColor = titleBrand === 'supabee' ? 'var(--warning)' : 'var(--brand-strong)';
+const titleBrandColor = titleBrand === 'supabee' ? 'var(--warning)' : 'var(--diagram-brand)';
 const highlightX = 270;
 const highlightWidth = 420;
 const migrationX = 310;
@@ -45,7 +45,7 @@ const seedStyle = (failed = false) => failed
     ? (
       <figcaption data-node="loop-title" data-initial-text={config.loopTitle.initial} class="text-title mb-4 text-center text-foreground">
         <span class="relative inline-block">
-          <span data-loop-brand class="text-brand-strong">supabase</span><span data-loop-command> db reset</span>
+          <span data-loop-brand style="color: var(--diagram-brand)">supabase</span><span data-loop-command> db reset</span>
           <span data-loop-strike aria-hidden="true" class="absolute inset-x-0 top-1/2 origin-left bg-current" style="height: 2px; transform: scaleX(0);"></span>
         </span>
       </figcaption>

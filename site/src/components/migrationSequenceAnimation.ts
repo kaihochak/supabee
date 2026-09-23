@@ -20,7 +20,7 @@ const setLoopTitle = (target: DiagramElement, value: string) => {
   const commandElement = target.querySelector<HTMLElement>('[data-loop-command]');
   if (!brandElement || !commandElement) return;
   brandElement.textContent = brand;
-  brandElement.style.color = brand === 'supabee' ? 'var(--warning)' : 'var(--brand-strong)';
+  brandElement.style.color = brand === 'supabee' ? 'var(--warning)' : 'var(--diagram-brand)';
   commandElement.textContent = ` ${command.join(' ')}`;
   const strike = target.querySelector<HTMLElement>('[data-loop-strike]');
   if (strike) {

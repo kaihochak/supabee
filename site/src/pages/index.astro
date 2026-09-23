@@ -116,14 +116,16 @@ alter table public.orders add column status_id bigint not null default 1;`;
             </li>
           </ol>
 
-          <h2
-            class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"
+          <section
+            class="mt-12 grid gap-5 border-t border-border pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
           >
+            <h2 class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
             <a
               href="/docs/database-lifecycle/#reset-a-local-database"
               class="text-foreground no-underline transition hover:text-brand-strong"
               >supabee db reset</a>
-          </h2>
+            </h2>
+            <div class="min-w-0">
           <p class="text-body my-4 text-muted-foreground">
             Say you are working on an order inventory system with a table like
             this:
@@ -186,7 +188,7 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             > expects the seed to fit a schema that changed after the data was dumped.
           </p>
           <div
-            class="relative left-1/2 my-8 grid w-[calc(100vw-2.5rem)] max-w-7xl -translate-x-1/2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
+            class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
           >
             <MigrationSequence variant="reset-conflict" class="min-w-0" />
             <div
@@ -223,6 +225,8 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             migrations can be deployed.
           </p>
           <MigrationSequence variant="supabee-reset" class="my-8" />
+            </div>
+          </section>
 
           <h2
             class="text-title mb-4 mt-12 scroll-mt-24 border-t border-border pt-12"

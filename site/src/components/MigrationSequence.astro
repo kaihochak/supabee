@@ -1,124 +1,38 @@
 ---
+import { diagrams, timing, type DiagramVariant, type DiagramStep } from './migrationSequence';
+
 interface Props {
-  variant: 'db-push' | 'reset-conflict' | 'supabee-reset';
+  variant: DiagramVariant;
   class?: string;
   id?: string;
   animate?: boolean;
   showTitle?: boolean;
+  transition?: boolean;
 }
 
-type RowKind = 'migration' | 'new-migration' | 'seeding' | 'failed-seeding';
-
-interface Row {
-  y: number;
-  label: string;
-  marker: string;
-  kind: RowKind;
-}
-
-const { variant, class: className, id = `migration-sequence-${variant}`, animate = true, showTitle = true } = Astro.props;
-
-const variants = {
-  'db-push': {
-    title: 'Supabase db push',
-    height: 726,
-    group: { y: 28, height: 486, label: 'Live database', labelWidth: 154 },
-    dataGroup: null,
-    rows: [
-      { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
-      { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
-      { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
-      { y: 398, label: 'Seeding', marker: '+', kind: 'seeding' },
-      { y: 610, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
-    ] satisfies Row[],
-    conflictY: null,
-    successY: 562,
-    description: 'Migration 1, Migration 2, Migration 3, and seeding form the live database before New Migration 4 runs.',
-  },
-  'reset-conflict': {
-    title: 'Supabase db reset conflict',
-    height: 822,
-    group: { y: 28, height: 374, label: 'Schema dump', labelWidth: 138 },
-    dataGroup: { y: 640, height: 150, label: 'Data dump', labelWidth: 124 },
-    rows: [
-      { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
-      { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
-      { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
-      { y: 430, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
-      { y: 674, label: 'Seeding', marker: '+', kind: 'failed-seeding' },
-    ] satisfies Row[],
-    conflictY: 594,
-    successY: null,
-    description: 'The schema and data dumps reflect Migrations 1 through 3. Migration 4 then runs before seeding, so the data dump conflicts with the changed schema.',
-  },
-  'supabee-reset': {
-    title: 'Supabee db reset',
-    height: 798,
-    group: { y: 28, height: 374, label: 'Schema dump', labelWidth: 138 },
-    dataGroup: { y: 436, height: 150, label: 'Data dump', labelWidth: 124 },
-    rows: [
-      { y: 62, label: 'Migration #1', marker: '1', kind: 'migration' },
-      { y: 174, label: 'Migration #2', marker: '2', kind: 'migration' },
-      { y: 286, label: 'Migration #3', marker: '3', kind: 'migration' },
-      { y: 470, label: 'Seeding', marker: '+', kind: 'seeding' },
-      { y: 682, label: 'New Migration #4', marker: '4', kind: 'new-migration' },
-    ] satisfies Row[],
-    conflictY: null,
-    successY: 634,
-    description: 'Supabee restores the schema dump through Migration 3, loads the data dump as seed data, and then applies New Migration 4.',
-  },
-} as const;
-
-const config = variants[variant];
+const { variant, class: className, id = `migration-sequence-${variant}`, animate = true, showTitle = true, transition = false } = Astro.props;
+const config = diagrams[variant];
 const titleId = `${id}-title`;
 const descriptionId = `${id}-description`;
-const groupLabelX = 166 + config.group.labelWidth / 2;
-const dataGroupLabelX = config.dataGroup ? 166 + config.dataGroup.labelWidth / 2 : 0;
-const rowDelay = (index: number) => 140 + index * 220;
-const connectorDelay = (index: number) => rowDelay(index) + 120;
-const dataGroupIndex = config.rows.findIndex((row) => row.kind === 'seeding' || row.kind === 'failed-seeding');
-const dataGroupDelay = Math.max(0, rowDelay(dataGroupIndex) - 90);
-const conflictDelay = config.conflictY ? connectorDelay(config.rows.length - 2) : 0;
-const successDelay = config.successY ? connectorDelay(config.rows.length - 2) : 0;
-
-const rowColors = {
-  migration: {
-    fill: '#ffffff',
-    stroke: '#dce4e0',
-    markerFill: '#eef2f0',
-    markerText: '#6d7974',
-    text: '#202623',
-    weight: 400,
-  },
-  'new-migration': {
-    fill: '#fff4d8',
-    stroke: '#cf8a16',
-    markerFill: '#ad6e0a',
-    markerText: '#ffffff',
-    text: '#6f4608',
-    weight: 500,
-  },
-  seeding: {
-    fill: '#edf8f1',
-    stroke: '#b8ddc5',
-    markerFill: '#d9eee1',
-    markerText: '#318153',
-    text: '#245f3d',
-    weight: 400,
-  },
-  'failed-seeding': {
-    fill: '#fff1f0',
-    stroke: '#e6aaa6',
-    markerFill: '#f5d1ce',
-    markerText: '#b93630',
-    text: '#912e29',
-    weight: 500,
-  },
-} as const;
+const groupStart = (group: number) => 120 + group * timing.groupPause;
+const delayFor = (step: DiagramStep, index: number) => groupStart(step.group) + config.steps.slice(0, index).filter((item) => item.group === step.group).length * timing.stepGap;
+const statusDelay = groupStart(Math.max(...config.steps.map((step) => step.group)) + 1) - timing.statusPause;
+const statusBefore = config.steps.at(-2)!;
+const statusAfter = config.steps.at(-1)!;
+const highlightFor = (group: number) => config.highlight.find((highlight) => highlight.groups.includes(group));
+const beforeHighlight = highlightFor(statusBefore.group);
+const afterHighlight = highlightFor(statusAfter.group);
+const statusBeforeEdge = beforeHighlight ? beforeHighlight.y + beforeHighlight.height : statusBefore.y + (statusBefore.kind === 'seeding' ? 58 : 60);
+const statusAfterEdge = afterHighlight ? afterHighlight.y : statusAfter.y;
+const statusY = (statusBeforeEdge + statusAfterEdge) / 2;
+const labelWidth = (label: string) => label.length * 9 + 38;
+const seedStyle = (failed = false) => failed
+  ? { fill: '#fff1f0', stroke: '#e6aaa6', icon: '#b93630', text: '#912e29' }
+  : { fill: '#edf8f1', stroke: '#9bc8aa', icon: '#318153', text: '#245f3d' };
 ---
 
-<figure class:list={['mx-auto w-full max-w-xl', className]}>
-  {showTitle && <figcaption class="text-label mb-4 text-center text-foreground">{config.title}</figcaption>}
+<figure class:list={['migration-diagram mx-auto w-full max-w-xl', { 'is-transition': transition }, className]}>
+  {showTitle && <figcaption class="text-label mb-3 text-center text-foreground">{config.title}</figcaption>}
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="960"
@@ -126,139 +40,162 @@ const rowColors = {
     viewBox={`0 0 960 ${config.height}`}
     role="img"
     aria-labelledby={`${titleId} ${descriptionId}`}
-    class="h-auto w-full rounded-2xl"
+    class="h-auto w-full"
     data-migration-sequence={animate ? '' : undefined}
+    data-transition={transition ? '' : undefined}
   >
-  <title id={titleId}>{config.title}</title>
-  <desc id={descriptionId}>{config.description}</desc>
+    <title id={titleId}>{config.title}</title>
+    <desc id={descriptionId}>{config.description}</desc>
 
-  <g class="sequence-layer" style="--sequence-delay: 0ms">
-    <rect x="140" y={config.group.y} width="680" height={config.group.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
-    <rect x="166" y="15" width={config.group.labelWidth} height="32" rx="16" fill="#318153" />
-    <text x={groupLabelX} y="36" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.group.label}</text>
-  </g>
-
-  {config.dataGroup && (
-    <g class="sequence-layer" style={`--sequence-delay: ${dataGroupDelay}ms`}>
-      <rect x="140" y={config.dataGroup.y} width="680" height={config.dataGroup.height} rx="24" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
-      <rect x="166" y={config.dataGroup.y - 13} width={config.dataGroup.labelWidth} height="32" rx="16" fill="#318153" />
-      <text x={dataGroupLabelX} y={config.dataGroup.y + 8} text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500" fill="#ffffff">{config.dataGroup.label}</text>
-    </g>
-  )}
-
-  <g fill="none" stroke="#dce4e0" stroke-width="2">
-    {config.rows.slice(0, -1).map((row, index) => (
-      <path class="sequence-connector" style={`--sequence-delay: ${connectorDelay(index)}ms`} pathLength="1" d={`M480 ${row.y + 84}V${config.rows[index + 1].y}`} />
-    ))}
-  </g>
-
-  {config.conflictY && (
-    <g class="sequence-conflict" style={`--sequence-delay: ${conflictDelay}ms`} font-family="Inter, ui-sans-serif, system-ui, sans-serif">
-      <circle cx="480" cy={config.conflictY} r="14" fill="#dc4c43" />
-      <text x="480" y={config.conflictY + 6} text-anchor="middle" font-size="17" font-weight="600" fill="#ffffff">!</text>
-      <text x="506" y={config.conflictY + 6} font-size="15" font-weight="500" fill="#b93630">Conflict</text>
-    </g>
-  )}
-
-  {config.successY && (
-    <g class="sequence-success" style={`--sequence-delay: ${successDelay}ms`} font-family="Inter, ui-sans-serif, system-ui, sans-serif">
-      <circle cx="480" cy={config.successY} r="14" fill="#318153" />
-      <path d={`M474 ${config.successY}l4 4 8-9`} fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-      <text x="506" y={config.successY + 6} font-size="15" font-weight="500" fill="#245f3d">Success</text>
-    </g>
-  )}
-
-  <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
-    {config.rows.map((row, index) => {
-      const colors = rowColors[row.kind];
-      const markerY = row.y + 42;
+    {config.highlight.map((group, index) => {
+      const width = labelWidth(group.label);
       return (
-        <g class:list={['sequence-row', { 'is-new-migration': row.kind === 'new-migration' }]} style={`--sequence-delay: ${rowDelay(index)}ms`}>
-          <rect x="180" y={row.y} width="600" height="84" rx="14" fill={colors.fill} stroke={colors.stroke} stroke-width={row.kind === 'new-migration' ? 3 : 2} />
-          <circle cx="228" cy={markerY} r="17" fill={colors.markerFill} />
-          <text x="228" y={markerY + 6} text-anchor="middle" font-size="16" font-weight="500" fill={colors.markerText}>{row.marker}</text>
-          <text x="266" y={row.y + 50} font-size="24" font-weight={colors.weight} fill={colors.text}>{row.label}</text>
+        <g class:list={['sequence-item', 'diagram-highlight', `diagram-highlight-${index}`]} style={`--delay:${groupStart(group.groups[0])}ms`}>
+          <rect x="140" y={group.y} width="680" height={group.height} rx="22" fill="#edf8f1" fill-opacity=".42" stroke="#9bc8aa" stroke-width="2" />
+          <rect x="166" y={group.y - 13} width={width} height="30" rx="15" fill="#318153" />
+          <text x={166 + width / 2} y={group.y + 7} text-anchor="middle" font-size="14" font-weight="500" fill="#fff">{group.label}</text>
         </g>
       );
     })}
-  </g>
+
+    <g fill="none" stroke="#dce4e0" stroke-width="2">
+      {config.steps.slice(0, -1).map((step, index) => (
+        <path
+          class:list={['sequence-connector', `connector-${index}`]}
+          style={`--delay:${delayFor(config.steps[index + 1], index + 1) - 130}ms`}
+          pathLength="1"
+          d={`M480 ${step.y + (step.kind === 'seeding' ? 58 : 60)}V${config.steps[index + 1].y}`}
+        />
+      ))}
+    </g>
+
+    <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+      {config.steps.map((step, index) => {
+        const delay = delayFor(step, index);
+        if (step.kind === 'seeding') {
+          const colors = seedStyle(step.failed);
+          return (
+            <g class:list={['sequence-item', 'diagram-step', 'diagram-seed', `diagram-group-${step.group}`, { 'is-failed': step.failed }]} style={`--delay:${delay}ms`}>
+              <rect x="205" y={step.y} width="550" height="58" rx="29" fill={colors.fill} stroke={colors.stroke} stroke-width="2" />
+              <ellipse cx="246" cy={step.y + 23} rx="13" ry="6" fill="none" stroke={colors.icon} stroke-width="2" />
+              <path d={`M233 ${step.y + 23}v12c0 3 6 6 13 6s13-3 13-6V${step.y + 23}`} fill="none" stroke={colors.icon} stroke-width="2" />
+              <text x="282" y={step.y + 37} font-size="21" font-weight="400" fill={colors.text}>{step.label}</text>
+            </g>
+          );
+        }
+        const isNew = step.kind === 'new-migration';
+        return (
+          <g class:list={['sequence-item', 'diagram-step', { 'diagram-new': isNew }, `diagram-group-${step.group}`]} style={`--delay:${delay}ms`}>
+            <rect x="180" y={step.y} width="600" height="60" rx="12" fill={isNew ? '#fff4d8' : '#fff'} stroke={isNew ? '#cf8a16' : '#dce4e0'} stroke-width={isNew ? 3 : 2} />
+            <circle cx="222" cy={step.y + 30} r="15" fill={isNew ? '#ad6e0a' : '#eef2f0'} />
+            <text x="222" y={step.y + 36} text-anchor="middle" font-size="15" font-weight="500" fill={isNew ? '#fff' : '#6d7974'}>{step.marker}</text>
+            <text x="258" y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill={isNew ? '#6f4608' : '#202623'}>{step.label}</text>
+          </g>
+        );
+      })}
+    </g>
+
+    <g class:list={['sequence-item', 'diagram-status', `is-${config.status}`]} style={`--delay:${statusDelay}ms`} font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+      <circle cx="480" cy={statusY} r="18" fill={config.status === 'conflict' ? '#dc4c43' : '#318153'} />
+      {config.status === 'conflict'
+        ? <text x="480" y={statusY + 7} text-anchor="middle" font-size="20" font-weight="600" fill="#fff">!</text>
+        : <path d={`M472 ${statusY}l5 5 11-12`} fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />}
+      <text x="514" y={statusY + 7} font-size="18" font-weight="500" fill={config.status === 'conflict' ? '#b93630' : '#245f3d'}>{config.status === 'conflict' ? 'Conflict' : 'Success'}</text>
+    </g>
+
+    {transition && (
+      <g>
+        <g class="diagram-transition-connectors" fill="none" stroke="#dce4e0" stroke-width="2">
+          <path d="M480 282V374" />
+          <path d="M480 432V546" />
+        </g>
+        <g class="diagram-transition-success" font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+          <circle cx="480" cy="506" r="18" fill="#318153" />
+          <path d="M472 506l5 5 11-12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <text x="514" y="513" font-size="18" font-weight="500" fill="#245f3d">Success</text>
+        </g>
+      </g>
+    )}
   </svg>
 </figure>
 
 <script>
-  const prepareMigrationSequences = () => {
-    const sequences = document.querySelectorAll<SVGElement>('[data-migration-sequence]:not([data-animation-ready])');
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        entry.target.classList.add('is-visible');
-        observer.unobserve(entry.target);
-      }
-    }, { threshold: 0.22 });
-
-    for (const sequence of sequences) {
-      sequence.dataset.animationReady = 'true';
-      sequence.classList.add('will-animate');
-      observer.observe(sequence);
-    }
+  const setupSequences = () => {
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.querySelectorAll<SVGElement>('[data-migration-sequence]:not([data-ready])').forEach((svg) => {
+      svg.dataset.ready = 'true';
+      if (reduceMotion) return;
+      new IntersectionObserver(([entry], observer) => {
+        if (!entry.isIntersecting) return;
+        svg.classList.add('will-animate');
+        requestAnimationFrame(() => svg.classList.add('is-visible'));
+        observer.disconnect();
+      }, { threshold: .2 }).observe(svg);
+    });
   };
-
-  prepareMigrationSequences();
-  document.addEventListener('astro:page-load', prepareMigrationSequences);
+  setupSequences();
+  document.addEventListener('astro:page-load', setupSequences);
 </script>
 
 <style>
-  .is-new-migration > rect {
-    filter: drop-shadow(0 10px 16px rgb(207 138 22 / 20%));
-  }
+  svg { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  .diagram-new > rect { filter: drop-shadow(0 7px 11px rgb(207 138 22 / 18%)); }
+  .diagram-transition-connectors, .diagram-transition-success { opacity: 0; }
 
   @media (prefers-reduced-motion: no-preference) {
-    .will-animate .sequence-layer,
-    .will-animate .sequence-row,
-    .will-animate .sequence-conflict,
-    .will-animate .sequence-success {
-      opacity: 0;
-      transform: translateY(10px);
-    }
+    .will-animate .sequence-item { opacity: 0; transform: translateY(8px); }
+    .will-animate .sequence-connector { stroke-dasharray: 1; stroke-dashoffset: 1; }
+    .will-animate.is-visible .sequence-item { animation: enter 380ms cubic-bezier(.22, 1, .36, 1) var(--delay) both; }
+    .will-animate.is-visible .sequence-connector { animation: draw 260ms ease-out var(--delay) both; }
+    .will-animate.is-visible .diagram-status circle { animation: pulse 480ms ease-out calc(var(--delay) + 220ms) both; transform-box: fill-box; transform-origin: center; }
 
-    .will-animate .sequence-connector {
-      stroke-dasharray: 1;
-      stroke-dashoffset: 1;
-    }
-
-    .will-animate.is-visible .sequence-layer,
-    .will-animate.is-visible .sequence-row,
-    .will-animate.is-visible .sequence-conflict,
-    .will-animate.is-visible .sequence-success {
-      animation: sequence-enter 420ms cubic-bezier(.22, 1, .36, 1) var(--sequence-delay) both;
-    }
-
-    .will-animate.is-visible .sequence-connector {
-      animation: sequence-draw 300ms ease-out var(--sequence-delay) both;
-    }
-
-    .will-animate.is-visible .sequence-conflict circle {
-      transform-box: fill-box;
-      transform-origin: center;
-      animation: conflict-pulse 520ms ease-out calc(var(--sequence-delay) + 260ms) both;
-    }
+    [data-transition].is-visible .diagram-new { animation: hero-migration 12s cubic-bezier(.22, 1, .36, 1) infinite both; }
+    [data-transition].is-visible .diagram-highlight-1,
+    [data-transition].is-visible .diagram-group-2 { animation: hero-data 12s cubic-bezier(.22, 1, .36, 1) infinite both; }
+    [data-transition].is-visible .diagram-seed > rect { animation: hero-seed-surface 12s ease-in-out infinite both; }
+    [data-transition].is-visible .diagram-seed > ellipse,
+    [data-transition].is-visible .diagram-seed > path { animation: hero-seed-icon 12s ease-in-out infinite both; }
+    [data-transition].is-visible .diagram-seed > text { animation: hero-seed-text 12s ease-in-out infinite both; }
+    [data-transition].is-visible .connector-2,
+    [data-transition].is-visible .connector-3 { animation: hero-old-connectors 12s ease-in-out infinite both; }
+    [data-transition].is-visible .diagram-transition-connectors { animation: hero-new-connectors 12s ease-in-out infinite both; }
+    [data-transition].is-visible .is-conflict { animation: hero-conflict 12s ease-in-out infinite both; }
+    [data-transition].is-visible .diagram-transition-success { animation: hero-success 12s ease-in-out infinite both; }
   }
 
-  @keyframes sequence-enter {
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  @keyframes enter { to { opacity: 1; transform: translateY(0); } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes pulse { 45% { transform: scale(1.28); } }
+  @keyframes hero-migration {
+    0%, 14% { opacity: 0; transform: translateY(8px); }
+    18%, 43% { opacity: 1; transform: translateY(0); }
+    49%, 66% { opacity: 0; transform: translateY(0); }
+    72% { opacity: 0; transform: translateY(196px); }
+    79%, 96% { opacity: 1; transform: translateY(196px); }
+    100% { opacity: 0; transform: translateY(0); }
   }
-
-  @keyframes sequence-draw {
-    to { stroke-dashoffset: 0; }
+  @keyframes hero-data {
+    0%, 21% { opacity: 0; transform: translateY(8px); }
+    25%, 52% { opacity: 1; transform: translateY(0); }
+    62%, 96% { opacity: 1; transform: translateY(-160px); }
+    100% { opacity: 1; transform: translateY(0); }
   }
+  @keyframes hero-seed-surface { 0%, 52%, 100% { fill: #fff1f0; stroke: #e6aaa6; } 62%, 96% { fill: #edf8f1; stroke: #9bc8aa; } }
+  @keyframes hero-seed-icon { 0%, 52%, 100% { stroke: #b93630; } 62%, 96% { stroke: #318153; } }
+  @keyframes hero-seed-text { 0%, 52%, 100% { fill: #912e29; } 62%, 96% { fill: #245f3d; } }
+  @keyframes hero-old-connectors { 0%, 18% { opacity: 0; } 25%, 43% { opacity: 1; } 49%, 100% { opacity: 0; } }
+  @keyframes hero-new-connectors { 0%, 58% { opacity: 0; } 66%, 96% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes hero-conflict { 0%, 22% { opacity: 0; } 27%, 43% { opacity: 1; } 49%, 100% { opacity: 0; } }
+  @keyframes hero-success { 0%, 73% { opacity: 0; } 79%, 96% { opacity: 1; } 100% { opacity: 0; } }
 
-  @keyframes conflict-pulse {
-    0%, 100% { transform: scale(1); }
-    45% { transform: scale(1.35); }
+  @media (prefers-reduced-motion: reduce) {
+    [data-transition] .diagram-new { transform: translateY(196px); }
+    [data-transition] .diagram-highlight-1,
+    [data-transition] .diagram-group-2 { transform: translateY(-160px); }
+    [data-transition] .connector-2,
+    [data-transition] .connector-3 { display: none; }
+    [data-transition] .diagram-transition-connectors { opacity: 1; }
+    [data-transition] .is-conflict { display: none; }
+    [data-transition] .diagram-transition-success { opacity: 1; }
   }
 </style>

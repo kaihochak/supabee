@@ -34,9 +34,10 @@ const seedStyle = (failed = false) => failed
   {config.loopTitle
     ? (
       <figcaption data-node="loop-title" data-initial-text={config.loopTitle.initial} class="text-title mb-4 text-center text-foreground">
-        <span data-loop-brand class="text-brand-strong relative inline-block">
-          supabase<span data-loop-strike aria-hidden="true" class="absolute inset-x-0 top-1/2 origin-left bg-current" style="height: 2px; transform: scaleX(0);"></span>
-        </span><span data-loop-command> db reset</span>
+        <span class="relative inline-block">
+          <span data-loop-brand class="text-brand-strong">supabase</span><span data-loop-command> db reset</span>
+          <span data-loop-strike aria-hidden="true" class="absolute inset-x-0 top-1/2 origin-left bg-current" style="height: 2px; transform: scaleX(0);"></span>
+        </span>
       </figcaption>
     )
     : showTitle && <figcaption class="text-label mb-3 text-center text-foreground">{config.title}</figcaption>}

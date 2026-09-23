@@ -97,11 +97,11 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     ],
     phases: [
       {
-        actions: [{ type: 'hide', targets: ['step-3', 'connector-2', 'connector-3', 'status'] }],
+        actions: [{ type: 'strike', target: 'loop-title' }],
         waitAfter: 350,
       },
       {
-        actions: [{ type: 'strike', target: 'loop-title' }],
+        actions: [{ type: 'hide', targets: ['step-3', 'connector-2', 'connector-3', 'status'] }],
         waitAfter: 350,
       },
       {

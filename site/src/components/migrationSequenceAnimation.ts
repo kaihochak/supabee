@@ -20,15 +20,13 @@ const setLoopTitle = (target: DiagramElement, value: string) => {
   const commandElement = target.querySelector<HTMLElement>('[data-loop-command]');
   if (!brandElement || !commandElement) return;
   brandElement.textContent = brand;
-  const strike = document.createElement('span');
-  strike.dataset.loopStrike = '';
-  strike.setAttribute('aria-hidden', 'true');
-  strike.className = 'absolute inset-x-0 top-1/2 origin-left bg-current';
-  strike.style.height = '2px';
-  strike.style.transform = 'scaleX(0)';
-  brandElement.append(strike);
   brandElement.style.color = brand === 'supabee' ? 'var(--warning)' : 'var(--brand-strong)';
   commandElement.textContent = ` ${command.join(' ')}`;
+  const strike = target.querySelector<HTMLElement>('[data-loop-strike]');
+  if (strike) {
+    strike.getAnimations().forEach((animation) => animation.cancel());
+    strike.style.transform = 'scaleX(0)';
+  }
 };
 
 const reset = (svg: SVGElement) => {
@@ -51,6 +49,7 @@ const reset = (svg: SVGElement) => {
   });
   const loopTitle = findNode(svg, 'loop-title') as HTMLElement | null;
   if (loopTitle?.dataset.initialText) {
+    loopTitle.getAnimations({ subtree: true }).forEach((animation) => animation.cancel());
     setLoopTitle(loopTitle, loopTitle.dataset.initialText);
     loopTitle.style.opacity = '1';
   }

@@ -42,7 +42,7 @@ const seedStyle = (failed = false) => failed
   : { fill: 'color-mix(in oklab, var(--success) 12%, var(--card))', stroke: 'var(--success)', icon: 'var(--success)', text: 'var(--success)' };
 ---
 
-<figure class:list={['migration-diagram mx-auto w-full max-w-sm', className]}>
+<figure class:list={['migration-diagram mx-auto w-full max-w-xs', className]}>
   {config.loopTitle
     ? (
       <figcaption data-node="loop-title" data-initial-text={config.loopTitle.initial} class="text-heading mb-6 text-center text-foreground">

@@ -201,6 +201,7 @@
 .prose-docs h2 { margin-top: 3rem; margin-bottom: 1rem; scroll-margin-top: 6rem; font-size: var(--text-heading); font-weight: var(--text-heading--font-weight); letter-spacing: var(--text-heading--letter-spacing); line-height: var(--text-heading--line-height); }
 .prose-docs h3 { margin-top: 2rem; margin-bottom: .75rem; scroll-margin-top: 6rem; font-size: var(--text-heading); font-weight: var(--text-heading--font-weight); letter-spacing: var(--text-heading--letter-spacing); line-height: var(--text-heading--line-height); }
 .prose-docs p, .prose-docs ul, .prose-docs ol { margin: 1rem 0; }
+.prose-docs > :last-child:is(p, ul, ol, pre, blockquote, table) { margin-bottom: 0; }
 .prose-docs ul, .prose-docs ol { padding-left: 1.4rem; }
 .prose-docs ul { list-style: disc; }
 .prose-docs ol { list-style: decimal; }

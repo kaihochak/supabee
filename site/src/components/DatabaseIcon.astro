@@ -1,0 +1,15 @@
+---
+interface Props {
+  x: number;
+  y: number;
+  scale?: number;
+  color?: string;
+}
+
+const { x, y, scale = 1, color = 'var(--muted-foreground)' } = Astro.props;
+---
+
+<g data-seed-role="icon" transform={`translate(${x} ${y}) scale(${scale})`} fill="none" stroke={color} stroke-width="0.5">
+  <ellipse cx="11" cy="5" rx="11" ry="5" />
+  <path d="M0 5v11c0 3 5 5 11 5s11-2 11-5V5" />
+</g>

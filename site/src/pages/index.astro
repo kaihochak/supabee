@@ -2,6 +2,7 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Header from "../components/Header.astro";
 import OrdersTable from "../components/OrdersTable.astro";
+import SchemaSyncSequence from "../components/SchemaSyncSequence.astro";
 import MigrationSequence from "../components/MigrationSequence.astro";
 import ResetSequenceComparison from "../components/ResetSequenceComparison.astro";
 import { Code } from "astro:components";
@@ -82,12 +83,6 @@ alter table public.orders add column status_id bigint not null default 1;`;
             Say you are working on an order inventory system with a table like
             this:
           </p>
-          <!-- <Code
-            code={ordersSchema}
-            lang="sql"
-            theme="github-dark"
-            class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg"
-          /> -->
           <OrdersTable variant="initial" />
 
           <p class="text-body my-4 text-foreground">
@@ -256,6 +251,10 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             You get per-object schema files without having to work out the
             dependency order yourself.
           </p>
+          <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+            <SchemaSyncSequence variant="db-dump" />
+            <SchemaSyncSequence variant="sync-schema" />
+          </div>
             </div>
           </section>
         </div>

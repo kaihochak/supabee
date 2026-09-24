@@ -1,0 +1,54 @@
+---
+import DatabaseIcon from './DatabaseIcon.astro';
+import DocumentIcon from './DocumentIcon.astro';
+
+interface Props {
+  variant: 'db-dump' | 'sync-schema';
+  class?: string;
+}
+
+const { variant, class: className } = Astro.props;
+const isSyncSchema = variant === 'sync-schema';
+const title = isSyncSchema ? 'supabee sync schema' : 'supabase db dump';
+const titleBrand = isSyncSchema ? 'supabee' : 'supabase';
+const titleBrandColor = isSyncSchema ? 'var(--warning)' : 'var(--diagram-brand)';
+const outputLabel = isSyncSchema ? 'schema/' : 'schema.sql';
+const outputDescription = isSyncSchema ? 'split schema files' : 'one large schema file';
+const description = isSyncSchema
+  ? 'A database flows into split schema files.'
+  : 'A database flows into one large schema file.';
+const outputColor = isSyncSchema ? 'var(--warning)' : 'var(--accent)';
+const databaseX = 47;
+const outputX = 266;
+---
+
+<figure class:list={['schema-sync-sequence mx-auto w-full max-w-sm', className]}>
+  <figcaption class="text-heading mb-6 text-center text-foreground">
+    <span style={`color: ${titleBrandColor}`}>{titleBrand}</span>{isSyncSchema ? ' sync schema' : ' db dump'}
+  </figcaption>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 220" role="img" aria-label={title} class="h-auto w-full">
+    <title>{title}</title>
+    <desc>{description}</desc>
+    <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+      <g transform={`translate(${databaseX} 62)`}>
+        <DatabaseIcon x={0} y={0} scale={4} color="var(--border)" />
+        <text x="48" y="112" text-anchor="middle" font-size="15" fill="var(--foreground)">Database</text>
+      </g>
+      <path d="M145 105h99" fill="none" stroke="var(--border)" stroke-width="1" marker-end={`url(#schema-arrow-${variant})`} />
+      <g transform={`translate(${outputX} 26)`}>
+        <DocumentIcon x={15} y={24} scale={4} color={outputColor} />
+        <text x="59" y="194" text-anchor="middle" font-size="15" fill="var(--foreground)">{outputLabel}</text>
+        <text x="59" y="214" text-anchor="middle" font-size="13" fill="var(--muted-foreground)">{outputDescription}</text>
+      </g>
+    </g>
+    <defs>
+      <marker id={`schema-arrow-${variant}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0 0 8 4 0 8" fill="none" stroke="var(--border)" />
+      </marker>
+    </defs>
+  </svg>
+</figure>
+
+<style>
+  svg { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+</style>

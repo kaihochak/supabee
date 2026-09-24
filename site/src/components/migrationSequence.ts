@@ -38,7 +38,7 @@ const layout = {
   oldMigrations: [54, 126],
   conflictNewMigrations: [266, 338],
   conflictSeed: 534,
-  liveSeed: 222,
+  liveSeed: 198,
   correctedSeed: 290,
   correctedNewMigrations: [462, 534],
 } as const;
@@ -83,7 +83,7 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     title: 'supabase db push',
     description: 'Migrations 1 and 2 and the existing data form the live database before new Migrations 3 and 4 are applied successfully.',
     height: 562,
-    highlight: [{ label: 'Live database', y: 20, height: 276, groups: [0, 1] }],
+    highlight: [{ label: 'Live database', y: 20, height: 252, groups: [0, 1] }],
     steps: [
       ...oldMigrations(),
       { kind: 'seeding', label: 'Seeding', y: layout.liveSeed, group: 1 },

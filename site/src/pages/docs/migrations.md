@@ -5,6 +5,8 @@ description: Detect cutoffs, audit SQL classifications, and split migrations tha
 eyebrow: Workflows
 ---
 
+For command options and examples, see [`migration audit`](/docs/commands/migration-audit/), [`migration mark`](/docs/commands/migration-mark/), [`migration unmark`](/docs/commands/migration-unmark/), and [`migration split-mixed`](/docs/commands/migration-split-mixed/).
+
 Supabee classifies migration files as `schema`, `data`, `mixed`, or `unknown`. Classification is based on SQL patterns and can be overridden with marker comments.
 
 ## Audit migrations

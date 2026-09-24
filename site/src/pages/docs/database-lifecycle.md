@@ -9,6 +9,8 @@ Supabase normally applies migrations before loading seed data. That order become
 
 ## Reset a local database
 
+[`supabee db reset` command reference](/docs/commands/db-reset/)
+
 ```bash
 supabee db reset
 ```
@@ -23,6 +25,8 @@ supabee db reset 20260309180959
 
 ## Start local Supabase
 
+[`supabee start` command reference](/docs/commands/start/)
+
 `start` uses the same defer-and-replay strategy around `supabase start`:
 
 ```bash
@@ -31,6 +35,8 @@ supabee start 20260309180959
 ```
 
 ## Reset a remote database
+
+Remote reset is also performed by [`supabee db reset`](/docs/commands/db-reset/); the options below select and protect the target.
 
 > Remote reset is destructive. It wipes the target database's `public` schema and reseeds it from local files. Do not use it against production.
 
@@ -52,6 +58,8 @@ supabee db reset \
 Use a direct connection or session pooler on port `5432`. Transaction pooler connections on port `6543` are not supported by this workflow.
 
 ## Resume a large seed
+
+[`supabee db seed-remote` command reference](/docs/commands/db-seed-remote/)
 
 Remote seed files run atomically through `psql`. If one fails, resume inclusively from that file:
 

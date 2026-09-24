@@ -45,3 +45,5 @@ supabee start
 | Migrations | `migration *`, `cutoff detect` | Audit and organize migration replay |
 
 Continue with [Getting started](/docs/getting-started/) to install Supabee and configure your first project.
+
+For details on each CLI command, see the [command reference](/docs/command-reference/). It links to dedicated pages for usage, options, and examples; the workflow guides above remain the overview of how commands work together.

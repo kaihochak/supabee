@@ -15,6 +15,8 @@ The `sync` commands combine a Supabase dump with Supabee's complete processing c
 
 ## Sync schema
 
+[`supabee sync schema` command reference](/docs/commands/sync-schema/)
+
 ```bash
 supabee sync schema
 ```
@@ -29,6 +31,8 @@ supabee sync schema \
 
 ## Sync data
 
+[`supabee sync data` command reference](/docs/commands/sync-data/)
+
 ```bash
 supabee sync data
 ```
@@ -42,6 +46,8 @@ supabee sync data \
 ```
 
 ## Existing dump files
+
+Use [`supabee schema`](/docs/commands/schema/) or [`supabee data`](/docs/commands/data/) to process local dump files without fetching a new dump.
 
 Use `schema` or `data` without `sync` when you already have a dump on disk:
 

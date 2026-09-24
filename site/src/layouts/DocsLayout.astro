@@ -14,6 +14,22 @@ const nav = [
     { href: '/docs/database-lifecycle/', label: 'Database lifecycle' },
     { href: '/docs/migrations/', label: 'Migration management' },
   ]},
+  { section: 'Commands', items: [
+    { href: '/docs/command-reference/', label: 'All commands' },
+    { href: '/docs/commands/init/', label: 'init' },
+    { href: '/docs/commands/sync-schema/', label: 'sync schema' },
+    { href: '/docs/commands/sync-data/', label: 'sync data' },
+    { href: '/docs/commands/schema/', label: 'schema' },
+    { href: '/docs/commands/data/', label: 'data' },
+    { href: '/docs/commands/db-reset/', label: 'db reset' },
+    { href: '/docs/commands/db-seed-remote/', label: 'db seed-remote' },
+    { href: '/docs/commands/start/', label: 'start' },
+    { href: '/docs/commands/cutoff-detect/', label: 'cutoff detect' },
+    { href: '/docs/commands/migration-audit/', label: 'migration audit' },
+    { href: '/docs/commands/migration-mark/', label: 'migration mark' },
+    { href: '/docs/commands/migration-unmark/', label: 'migration unmark' },
+    { href: '/docs/commands/migration-split-mixed/', label: 'migration split-mixed' },
+  ]},
   { section: 'Reference', items: [
     { href: '/docs/configuration/', label: 'Configuration' },
     { href: '/docs/command-reference/', label: 'Command reference' },
@@ -24,26 +40,26 @@ const nav = [
 <BaseLayout title={`${frontmatter.title} — Supabee`} description={frontmatter.description} canonicalPath={currentPath}>
   <Header />
   <div class="pt-14">
-    <aside class="fixed bottom-0 left-0 top-14 z-40 hidden w-[18rem] overflow-y-auto border-r border-border bg-background p-5 md:block">
+    <aside class="docs-sidebar fixed bottom-0 left-0 top-14 z-40 hidden w-[18rem] overflow-y-auto bg-background p-5 md:block">
       <nav aria-label="Documentation navigation" class="space-y-7">
         {nav.map((group) => (
           <section>
             <h2 class="text-overline mb-2 px-2 uppercase text-muted-foreground">{group.section}</h2>
             <ul class="space-y-1">
               {group.items.map((item) => (
-                <li><a href={item.href} aria-current={currentPath === item.href ? 'page' : undefined} class:list={['text-label block rounded-lg px-3 py-2 transition', currentPath === item.href ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground']}>{item.label}</a></li>
+                <li><a href={item.href} aria-current={currentPath === item.href ? 'page' : undefined} class:list={['text-label block rounded-lg px-3 py-2 transition text-foreground', currentPath === item.href ? 'bg-accent' : 'hover:bg-muted']}>{item.label}</a></li>
               ))}
             </ul>
           </section>
         ))}
       </nav>
-      <div class="mt-8 border-t border-border pt-5">
-        <a href="https://github.com/kaihochak/supabee" class="text-label block rounded-lg px-3 py-2 text-muted-foreground hover:bg-muted hover:text-foreground">GitHub repository ↗</a>
+      <div class="mt-8 pt-5">
+        <a href="https://github.com/kaihochak/supabee" class="text-label block rounded-lg px-3 py-2 text-foreground hover:bg-muted">GitHub repository ↗</a>
       </div>
     </aside>
     <main class="min-h-[calc(100vh-3.5rem)] md:pl-[18rem]">
-      <article class="prose-docs mx-auto max-w-4xl px-6 py-14 sm:px-10 sm:py-20">
-        <div class="mb-10 border-b border-border pb-8">
+      <article class="prose-docs mx-auto max-w-4xl px-4 py-0 sm:px-6">
+        <div class="mb-6 border-b border-border pb-4">
           {frontmatter.eyebrow && <p class="text-overline mb-3 uppercase text-brand-strong">{frontmatter.eyebrow}</p>}
           <h1>{frontmatter.title}</h1>
           <p class="text-body m-0 max-w-2xl text-muted-foreground">{frontmatter.description}</p>
@@ -53,3 +69,13 @@ const nav = [
     </main>
   </div>
 </BaseLayout>
+
+<style>
+  .docs-sidebar {
+    scrollbar-width: none;
+  }
+
+  .docs-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+</style>

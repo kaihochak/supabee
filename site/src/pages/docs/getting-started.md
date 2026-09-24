@@ -27,6 +27,8 @@ npx supabee --help
 
 ## Initialize the project
 
+See the [`supabee init` command reference](/docs/commands/init/) for exactly what it changes.
+
 From your project root, run:
 
 ```bash
@@ -44,6 +46,8 @@ supabase link
 ```
 
 ## Run your first sync
+
+See the [`sync schema`](/docs/commands/sync-schema/) and [`sync data`](/docs/commands/sync-data/) command references for options and path overrides.
 
 ```bash
 supabee sync schema

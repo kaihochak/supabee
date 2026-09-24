@@ -3,29 +3,37 @@ import DatabaseIcon from './DatabaseIcon.astro';
 import MigrationDocument from './MigrationDocument.astro';
 
 interface Props {
-  variant: 'db-dump' | 'sync-schema';
+  variant: 'db-dump' | 'sync-schema' | 'data-dump' | 'sync-data';
   class?: string;
 }
 
 const { variant, class: className } = Astro.props;
 const isSyncSchema = variant === 'sync-schema';
-const title = isSyncSchema ? 'supabee sync schema' : 'supabase db dump';
-const titleBrand = isSyncSchema ? 'supabee' : 'supabase';
-const titleBrandColor = isSyncSchema ? 'var(--warning)' : 'var(--diagram-brand)';
-const outputLabel = isSyncSchema ? 'schema/' : 'schema.sql';
+const isSyncData = variant === 'sync-data';
+const isDataDump = variant === 'data-dump';
+const title = isSyncSchema ? 'supabee sync schema' : isSyncData ? 'supabee sync data' : isDataDump ? 'supabase db dump --data-only' : 'supabase db dump';
+const titleBrand = isSyncSchema || isSyncData ? 'supabee' : 'supabase';
+const titleBrandColor = isSyncSchema || isSyncData ? 'var(--warning)' : 'var(--diagram-brand)';
+const outputLabel = isSyncSchema ? 'schema/' : isSyncData ? 'data files' : isDataDump ? 'seed.sql' : 'schema.sql';
 const schemaFiles = ['00_extensions', '01_setup', '02_types', '03_functions', '04_tables'];
 const tableFiles = ['0001_admin_logs.sql', '0002_products.sql', '0003_orders.sql'];
+const dataFiles = ['001_admin_logs_01.sql', '001_admin_logs_02.sql', '002_products_01.sql', '002_products_02.sql', '002_products_03.sql', '003_orders_01.sql', '003_orders_02.sql'];
 const description = isSyncSchema
   ? 'A database flows into split schema files.'
   : 'A database flows into one large schema file.';
-const outputColor = isSyncSchema ? 'var(--warning)' : 'var(--accent)';
+const outputColor = isSyncSchema || isSyncData ? 'var(--warning)' : 'var(--accent)';
+const splitFiles = isSyncSchema ? schemaFiles : dataFiles;
+const splitRowGap = isSyncSchema || isSyncData ? 48 : 70;
+const splitCardHeight = isSyncSchema || isSyncData ? 40 : 60;
+const splitCardX = isSyncSchema || isSyncData ? 360 : 310;
+const splitCardWidth = isSyncSchema || isSyncData ? 240 : 340;
 ---
 
 <figure class:list={['schema-sync-sequence mx-auto w-full max-w-sm', className]}>
   <figcaption class="text-heading mb-6 text-center text-foreground">
-    <span style={`color: ${titleBrandColor}`}>{titleBrand}</span>{isSyncSchema ? ' sync schema' : ' db dump'}
+    <span style={`color: ${titleBrandColor}`}>{titleBrand}</span>{isSyncSchema ? ' sync schema' : isSyncData ? ' sync data' : isDataDump ? ' db dump --data-only' : ' db dump'}
   </figcaption>
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox={`260 0 440 ${isSyncSchema ? 620 : 360}`} role="img" aria-label={title} class="h-auto w-full" data-migration-sequence data-keep-static="true" data-loop-pause={isSyncSchema ? 1200 : 3000}>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox={`260 0 440 ${isSyncSchema || isSyncData ? 620 : 360}`} role="img" aria-label={title} class="h-auto w-full" data-migration-sequence data-keep-static="true" data-loop-pause={isSyncSchema || isSyncData ? 1200 : 3000}>
     <title>{title}</title>
     <desc>{description}</desc>
     <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
@@ -41,14 +49,14 @@ const outputColor = isSyncSchema ? 'var(--warning)' : 'var(--accent)';
       </g>
       <path data-node="connector-0" data-sequence-node data-kind="connector" data-delay="680" pathLength="1" d="M480 156V204" fill="none" stroke="var(--border)" stroke-width="1" />
       <g data-node="output">
-        {isSyncSchema
-          ? schemaFiles.map((file, index) => (
+        {isSyncSchema || isSyncData
+          ? splitFiles.map((file, index) => (
               <Fragment>
-                {index > 0 && <path data-node={`output-connector-${index - 1}`} data-sequence-node data-kind="connector" data-delay={1180 + (index - 1) * 220} pathLength="1" d={`M480 ${244 + (index - 1) * 48}V${252 + (index - 1) * 48}`} fill="none" stroke="var(--border)" stroke-width="1" />}
+                {index > 0 && <path data-node={`output-connector-${index - 1}`} data-sequence-node data-kind="connector" data-delay={1180 + (index - 1) * 220} pathLength="1" d={`M480 ${204 + (index - 1) * splitRowGap + splitCardHeight}V${204 + index * splitRowGap}`} fill="none" stroke="var(--border)" stroke-width="1" />}
                 <g data-node={`output-${index}`} data-sequence-node data-kind="item" data-delay={980 + index * 240}>
-                  <MigrationDocument x={360} y={204 + index * 48} width={240} label={file} color="var(--foreground)" border={outputColor} newItem compact icon="folder" />
+                  <MigrationDocument x={splitCardX} y={204 + index * splitRowGap} width={splitCardWidth} label={file} color="var(--foreground)" border={outputColor} newItem={isSyncSchema || isSyncData} compact icon={isSyncSchema ? 'folder' : 'document'} />
                 </g>
-                {index === schemaFiles.length - 1 && tableFiles.map((tableFile, tableIndex) => (
+                {isSyncSchema && index === schemaFiles.length - 1 && tableFiles.map((tableFile, tableIndex) => (
                   <Fragment>
                     <path data-node={`table-connector-${tableIndex}`} data-sequence-node data-kind="connector" data-delay={2320 + tableIndex * 220} pathLength="1" d={tableIndex === 0 ? 'M480 436V444' : `M480 ${484 + (tableIndex - 1) * 48}V${492 + (tableIndex - 1) * 48}`} fill="none" stroke="var(--border)" stroke-width="1" />
                     <g data-node={`table-${tableIndex}`} data-sequence-node data-kind="item" data-delay={2200 + tableIndex * 220}>

@@ -219,6 +219,10 @@ ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</cod
             tables can span multiple files. Supabee then reconstructs and validates
             the result so you know the split files still load.
           </p>
+          <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+            <SchemaSyncSequence variant="data-dump" />
+            <SchemaSyncSequence variant="sync-data" />
+          </div>
             </div>
           </section>
 

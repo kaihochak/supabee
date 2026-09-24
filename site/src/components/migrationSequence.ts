@@ -35,12 +35,12 @@ export interface DiagramConfig {
 }
 
 const layout = {
-  oldMigrations: [54, 138],
-  conflictNewMigrations: [266, 350],
+  oldMigrations: [54, 126],
+  conflictNewMigrations: [266, 338],
   conflictSeed: 534,
   liveSeed: 222,
   correctedSeed: 290,
-  correctedNewMigrations: [462, 546],
+  correctedNewMigrations: [462, 534],
 } as const;
 
 const migrationSteps = (
@@ -66,8 +66,8 @@ const resetConflict: DiagramConfig = {
   description: 'The schema dump restores Migrations 1 and 2, new Migrations 3 and 4 change it, and the older data dump then conflicts with that changed schema.',
   height: 650,
   highlight: [
-    { label: 'Schema dump', y: 20, height: 212, groups: [0] },
-    { label: 'Data dump', y: 500, height: 126, groups: [2] },
+    { label: 'Schema dump', y: 20, height: 194, groups: [0] },
+    { label: 'Data dump', y: 500, height: 108, groups: [2] },
   ],
   steps: [
     ...oldMigrations(),
@@ -83,11 +83,11 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     title: 'supabase db push',
     description: 'Migrations 1 and 2 and the existing data form the live database before new Migrations 3 and 4 are applied successfully.',
     height: 562,
-    highlight: [{ label: 'Live database', y: 20, height: 294, groups: [0, 1] }],
+    highlight: [{ label: 'Live database', y: 20, height: 276, groups: [0, 1] }],
     steps: [
       ...oldMigrations(),
       { kind: 'seeding', label: 'Seeding', y: layout.liveSeed, group: 1 },
-      ...newMigrations([394, 478], 2),
+      ...newMigrations([394, 466], 2),
     ],
     status: 'success',
   },
@@ -96,8 +96,8 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     description: 'Supabee restores Migrations 1 and 2 from the schema dump, loads the data dump, and only then applies new Migrations 3 and 4 successfully.',
     height: 630,
     highlight: [
-      { label: 'Schema dump', y: 20, height: 212, groups: [0] },
-      { label: 'Data dump', y: 256, height: 126, groups: [1] },
+      { label: 'Schema dump', y: 20, height: 194, groups: [0] },
+      { label: 'Data dump', y: 256, height: 108, groups: [1] },
     ],
     steps: [
       ...oldMigrations(),

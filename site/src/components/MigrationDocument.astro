@@ -1,0 +1,29 @@
+---
+import DocumentIcon from './DocumentIcon.astro';
+
+interface Props {
+  x: number;
+  y: number;
+  label: string;
+  width?: number;
+  color?: string;
+  border?: string;
+  newItem?: boolean;
+}
+
+const { x, y, label, width = 340, color = 'var(--foreground)', border = 'var(--border)', newItem = false } = Astro.props;
+const iconColor = newItem ? 'var(--warning)' : 'var(--muted-foreground)';
+const fill = newItem ? 'color-mix(in oklab, var(--warning) 18%, var(--card))' : 'var(--card)';
+const textWeight = newItem ? 500 : 400;
+const iconScale = width / 340;
+const iconX = 16 * iconScale;
+const iconY = 17 * iconScale;
+const textX = 56 * iconScale;
+const textY = 38 * iconScale;
+---
+
+<g>
+  <rect x={x} y={y} width={width} height="60" rx="12" fill={fill} stroke={border} stroke-width="0.25" />
+  <DocumentIcon x={x + iconX} y={y + iconY} scale={iconScale} color={iconColor} />
+  <text x={x + textX} y={y + textY} font-size="21" font-weight={textWeight} fill={color}>{label}</text>
+</g>

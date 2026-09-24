@@ -155,8 +155,10 @@ const playLoop = async (svg: SVGElement) => {
       await pause(phase.waitAfter);
     }
     if (phases.length === 0) await pause(1200);
-    await run(svg, [{ opacity: 1 }, { opacity: 0 }], 280);
-    await pause(120);
+    if (svg.dataset.keepStatic !== 'true') {
+      await run(svg, [{ opacity: 1 }, { opacity: 0 }], 280);
+      await pause(120);
+    }
   }
 };
 

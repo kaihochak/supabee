@@ -1,7 +1,7 @@
 ---
 import { diagrams, timing, type DiagramVariant, type DiagramStep } from './migrationSequence';
 import DatabaseIcon from './DatabaseIcon.astro';
-import DocumentIcon from './DocumentIcon.astro';
+import MigrationDocument from './MigrationDocument.astro';
 
 interface Props {
   variant: DiagramVariant;
@@ -124,9 +124,7 @@ const seedStyle = (failed = false) => failed
         const isNew = step.kind === 'new-migration';
         return (
           <g data-node={`step-${index}`} data-sequence-node data-kind="item" data-delay={delay} class:list={{ 'diagram-new': isNew }}>
-            <rect x={migrationX} y={step.y} width={migrationWidth} height="60" rx="12" fill={isNew ? 'color-mix(in oklab, var(--warning) 18%, var(--card))' : 'var(--card)'} stroke={isNew ? 'var(--warning)' : 'var(--border)'} stroke-width="0.25" />
-            <DocumentIcon x={migrationX + 16} y={step.y + 17} color={isNew ? 'var(--warning)' : 'var(--muted-foreground)'} />
-            <text x={migrationX + 56} y={step.y + 38} font-size="21" font-weight={isNew ? 500 : 400} fill="var(--foreground)">{step.label}</text>
+            <MigrationDocument x={migrationX} y={step.y} width={migrationWidth} label={step.label} border={isNew ? 'var(--warning)' : 'var(--border)'} newItem={isNew} />
           </g>
         );
       })}

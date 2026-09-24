@@ -154,7 +154,7 @@ const playLoop = async (svg: SVGElement) => {
       await Promise.all(phase.actions.flatMap((action) => applyAction(svg, action)));
       await pause(phase.waitAfter);
     }
-    if (phases.length === 0) await pause(1200);
+    if (phases.length === 0) await pause(Number(svg.dataset.loopPause ?? 1200));
     if (svg.dataset.keepStatic !== 'true') {
       await run(svg, [{ opacity: 1 }, { opacity: 0 }], 280);
       await pause(120);

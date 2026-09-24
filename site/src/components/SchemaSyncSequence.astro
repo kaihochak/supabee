@@ -13,6 +13,8 @@ const title = isSyncSchema ? 'supabee sync schema' : 'supabase db dump';
 const titleBrand = isSyncSchema ? 'supabee' : 'supabase';
 const titleBrandColor = isSyncSchema ? 'var(--warning)' : 'var(--diagram-brand)';
 const outputLabel = isSyncSchema ? 'schema/' : 'schema.sql';
+const schemaFiles = ['00_extensions', '01_setup', '02_types', '03_functions', '04_tables'];
+const tableFiles = ['0001_admin_logs.sql', '0002_products.sql', '0003_orders.sql'];
 const description = isSyncSchema
   ? 'A database flows into split schema files.'
   : 'A database flows into one large schema file.';
@@ -23,23 +25,42 @@ const outputColor = isSyncSchema ? 'var(--warning)' : 'var(--accent)';
   <figcaption class="text-heading mb-6 text-center text-foreground">
     <span style={`color: ${titleBrandColor}`}>{titleBrand}</span>{isSyncSchema ? ' sync schema' : ' db dump'}
   </figcaption>
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="260 0 440 360" role="img" aria-label={title} class="h-auto w-full" data-migration-sequence data-keep-static="true">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox={`260 0 440 ${isSyncSchema ? 620 : 360}`} role="img" aria-label={title} class="h-auto w-full" data-migration-sequence data-keep-static="true" data-loop-pause={isSyncSchema ? 1200 : 3000}>
     <title>{title}</title>
     <desc>{description}</desc>
     <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
       <g data-node="highlight-0">
-        <rect x="380" y="15" width="200" height="150" rx="22" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="0.25" />
+        <rect x="400" y="18" width="160" height="170" rx="22" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="0.25" />
         <rect x="437" y="7" width="86" height="30" rx="15" fill="var(--accent)" />
         <text x="480" y="27" text-anchor="middle" font-size="14" font-weight="500" fill="var(--accent-foreground)">Database</text>
       </g>
       <g data-node="database">
-        <g transform="translate(436 56)">
+        <g transform="translate(436 72)">
           <DatabaseIcon x={0} y={0} scale={4} color="var(--success)" />
         </g>
       </g>
-      <path data-node="connector-0" data-sequence-node data-kind="connector" data-delay="680" pathLength="1" d="M480 140V204" fill="none" stroke="var(--border)" stroke-width="1" />
-      <g data-node="output" data-sequence-node data-kind="item" data-delay="980">
-        <MigrationDocument x={310} y={204} label={outputLabel} color="var(--foreground)" border={outputColor} newItem={isSyncSchema} />
+      <path data-node="connector-0" data-sequence-node data-kind="connector" data-delay="680" pathLength="1" d="M480 156V204" fill="none" stroke="var(--border)" stroke-width="1" />
+      <g data-node="output">
+        {isSyncSchema
+          ? schemaFiles.map((file, index) => (
+              <Fragment>
+                {index > 0 && <path data-node={`output-connector-${index - 1}`} data-sequence-node data-kind="connector" data-delay={1180 + (index - 1) * 220} pathLength="1" d={`M480 ${244 + (index - 1) * 48}V${252 + (index - 1) * 48}`} fill="none" stroke="var(--border)" stroke-width="1" />}
+                <g data-node={`output-${index}`} data-sequence-node data-kind="item" data-delay={980 + index * 240}>
+                  <MigrationDocument x={360} y={204 + index * 48} width={240} label={file} color="var(--foreground)" border={outputColor} newItem compact icon="folder" />
+                </g>
+                {index === schemaFiles.length - 1 && tableFiles.map((tableFile, tableIndex) => (
+                  <Fragment>
+                    <path data-node={`table-connector-${tableIndex}`} data-sequence-node data-kind="connector" data-delay={2320 + tableIndex * 220} pathLength="1" d={tableIndex === 0 ? 'M480 436V444' : `M480 ${484 + (tableIndex - 1) * 48}V${492 + (tableIndex - 1) * 48}`} fill="none" stroke="var(--border)" stroke-width="1" />
+                    <g data-node={`table-${tableIndex}`} data-sequence-node data-kind="item" data-delay={2200 + tableIndex * 220}>
+                      <MigrationDocument x={380} y={444 + tableIndex * 48} width={200} label={tableFile} color="var(--foreground)" border="var(--border)" compact />
+                    </g>
+                  </Fragment>
+                ))}
+              </Fragment>
+            ))
+          : <g data-node="output-0" data-sequence-node data-kind="item" data-delay="980">
+              <MigrationDocument x={310} y={204} label={outputLabel} color="var(--foreground)" border={outputColor} />
+            </g>}
       </g>
     </g>
   </svg>

@@ -1,5 +1,6 @@
 ---
 import DocumentIcon from './DocumentIcon.astro';
+import FolderIcon from './FolderIcon.astro';
 
 interface Props {
   x: number;
@@ -9,21 +10,27 @@ interface Props {
   color?: string;
   border?: string;
   newItem?: boolean;
+  compact?: boolean;
+  icon?: 'document' | 'folder';
 }
 
-const { x, y, label, width = 340, color = 'var(--foreground)', border = 'var(--border)', newItem = false } = Astro.props;
+const { x, y, label, width = 340, color = 'var(--foreground)', border = 'var(--border)', newItem = false, compact = false, icon = 'document' } = Astro.props;
 const iconColor = newItem ? 'var(--warning)' : 'var(--muted-foreground)';
 const fill = newItem ? 'color-mix(in oklab, var(--warning) 18%, var(--card))' : 'var(--card)';
 const textWeight = newItem ? 500 : 400;
-const iconScale = width / 340;
-const iconX = 16 * iconScale;
-const iconY = 17 * iconScale;
-const textX = 56 * iconScale;
-const textY = 38 * iconScale;
+const height = compact ? 40 : 60;
+const iconScale = compact ? 0.68 : 1;
+const iconX = compact ? 10 : 16;
+const iconY = compact ? (height - 26 * iconScale) / 2 : 17;
+const textX = compact ? 32 : 56;
+const fontSize = compact ? 14 : 21;
+const textY = compact ? (height + fontSize * 0.72) / 2 : 38;
 ---
 
 <g>
-  <rect x={x} y={y} width={width} height="60" rx="12" fill={fill} stroke={border} stroke-width="0.25" />
-  <DocumentIcon x={x + iconX} y={y + iconY} scale={iconScale} color={iconColor} />
-  <text x={x + textX} y={y + textY} font-size="21" font-weight={textWeight} fill={color}>{label}</text>
+  <rect x={x} y={y} width={width} height={height} rx={compact ? 9 : 12} fill={fill} stroke={border} stroke-width="0.25" />
+  {icon === 'folder'
+    ? <FolderIcon x={x + iconX} y={y + iconY} scale={iconScale} color={iconColor} />
+    : <DocumentIcon x={x + iconX} y={y + iconY} scale={iconScale} color={iconColor} />}
+  <text x={x + textX} y={y + textY} font-size={fontSize} font-weight={textWeight} fill={color}>{label}</text>
 </g>

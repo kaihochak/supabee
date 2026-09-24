@@ -112,7 +112,7 @@ export const diagrams: Record<DiagramVariant, DiagramConfig> = {
     description: 'The conflicting reset order is shown first, then the data dump moves before new Migrations 3 and 4 and the reset succeeds.',
     loopTitle: { initial: 'supabase db reset', corrected: 'supabee db reset' },
     extraConnectors: [
-      { id: 'corrected-connector-0', path: 'M480 198V290' },
+      { id: 'corrected-connector-0', path: 'M480 186V290' },
       { id: 'corrected-connector-1', path: 'M480 348V462' },
       { id: 'corrected-connector-2', path: 'M480 522V546' },
     ],

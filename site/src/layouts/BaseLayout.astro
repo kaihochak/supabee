@@ -19,7 +19,7 @@ const socialImage = new URL(image, Astro.site);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
@@ -39,23 +39,10 @@ const socialImage = new URL(image, Astro.site);
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={socialImage} />
     <title>{title}</title>
-    <script is:inline>
-      (() => {
-        const saved = localStorage.getItem('supabee-theme');
-        const dark = saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.classList.toggle('dark', dark);
-      })();
-    </script>
   </head>
   <body>
     <slot />
     <script is:inline>
-      document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const dark = document.documentElement.classList.toggle('dark');
-          localStorage.setItem('supabee-theme', dark ? 'dark' : 'light');
-        });
-      });
       document.querySelectorAll('[data-copy]').forEach((button) => {
         button.addEventListener('click', async () => {
           const value = button.getAttribute('data-copy') || '';

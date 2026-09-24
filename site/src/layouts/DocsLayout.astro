@@ -19,8 +19,6 @@ const nav = [
     { href: '/docs/commands/init/', label: 'init' },
     { href: '/docs/commands/sync-schema/', label: 'sync schema' },
     { href: '/docs/commands/sync-data/', label: 'sync data' },
-    { href: '/docs/commands/schema/', label: 'schema' },
-    { href: '/docs/commands/data/', label: 'data' },
     { href: '/docs/commands/db-reset/', label: 'db reset' },
     { href: '/docs/commands/db-seed-remote/', label: 'db seed-remote' },
     { href: '/docs/commands/start/', label: 'start' },
@@ -53,16 +51,16 @@ const nav = [
           </section>
         ))}
       </nav>
-      <div class="mt-8 pt-5">
+      <div class="mt-8 border-t border-border pt-5">
         <a href="https://github.com/kaihochak/supabee" class="text-label block rounded-lg px-3 py-2 text-foreground hover:bg-muted">GitHub repository ↗</a>
       </div>
     </aside>
     <main class="min-h-[calc(100vh-3.5rem)] md:pl-[18rem]">
       <article class="prose-docs mx-auto max-w-4xl px-4 py-0 sm:px-6">
-        <div class="mb-6 border-b border-border pb-4">
+        <div class="mb-6 pb-4">
           {frontmatter.eyebrow && <p class="text-overline mb-3 uppercase text-brand-strong">{frontmatter.eyebrow}</p>}
           <h1>{frontmatter.title}</h1>
-          <p class="text-body m-0 max-w-2xl text-muted-foreground">{frontmatter.description}</p>
+          <p class="text-body m-0 text-muted-foreground">{frontmatter.description}</p>
         </div>
         <slot />
       </article>

@@ -110,11 +110,13 @@ supabee db reset --linked
 supabee start [cutoff_timestamp]
 ```
 
-`sync` commands run end-to-end:
+With `--sync`, each command runs end-to-end against the linked project:
 
 - schema: `supabase db dump` -> split -> reconstruct -> validate
 - data: `supabase db dump --data-only` -> split -> reconstruct -> validate
 - linked reset: defer migrations -> reset without seed -> seed atomically via `psql` -> reapply migrations
+
+Use `--no-sync` with either `sync` subcommand to process an existing local dump instead of fetching one. The top-level `supabee schema` and `supabee data` commands remain available for the same local-file workflow.
 
 ### Selective seeding example (optional)
 
@@ -197,6 +199,12 @@ supabee sync schema --backup
 supabee sync schema --force
 ```
 
+Add `--no-sync` to process an existing local dump rather than calling `supabase db dump`:
+
+```bash
+supabee sync schema --no-sync --input supabase/schemas/prod-schemas.sql
+```
+
 ### `sync data`
 
 Dumps data (`--data-only`) from the linked Supabase project, then runs full data processing:
@@ -207,6 +215,12 @@ supabee sync data --input supabase/seeds/prod-data.sql --output supabase/seeds/s
 supabee sync data --backup
 supabee sync data --no-backup
 supabee sync data --force
+```
+
+Add `--no-sync` to process an existing local data dump:
+
+```bash
+supabee sync data --no-sync --input supabase/seeds/prod-data.sql
 ```
 
 ### `db reset`
@@ -394,7 +408,7 @@ supabee db dump        # forwards to: supabase db dump
 
 ### Overriding paths
 
-`schema`, `data`, and `sync` commands accept `--input` and `--output` flags:
+`schema` and `data` accept `--input` and `--output` flags in either local-file mode or `--sync` mode:
 
 ```bash
 supabee schema split --input path/to/schema.sql --output path/to/split
@@ -501,13 +515,16 @@ Override limits or skip specific tables:
 
 ## Flags
 
-`schema`, `data`, `sync schema`, and `sync data` support:
+`sync schema` and `sync data` support these options:
 
-- `--input`: source SQL file
-- `--output`: output path (split dir for `split`, reconstructed file for `reconstruct`/`validate`)
+- `--input`: destination for the fresh dump, or local source SQL file with `--no-sync`
+- `--output`: split directory, or reconstructed file for `reconstruct`/`validate`
 - `--backup`: create backup of dirty split directory before running split
 - `--no-backup`: disable backup of dirty split directory before running split
-- `--force` (sync commands only): skip linked migration alignment preflight
+- `--no-sync`: process the local source SQL file without fetching a linked dump
+- `--force`: skip linked migration alignment preflight; cannot be combined with `--no-sync`
+
+`--no-sync` skips the dump step but still runs split → reconstruct → validate. The top-level `schema` and `data` commands expose individual processing steps.
 
 For `validate`, you can pass reconstructed path either as `--output <path>` or as the second positional argument.
 
@@ -571,8 +588,8 @@ Recommended approach:
 supabee --help
 supabee init --help
 supabee sync --help
-supabee sync schema --help
-supabee sync data --help
+supabee schema --help
+supabee data --help
 supabee schema --help
 supabee data --help
 supabee start --help

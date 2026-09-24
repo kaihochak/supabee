@@ -39,7 +39,7 @@ supabee start
 | Area | Commands | Purpose |
 | --- | --- | --- |
 | Setup | `init` | Configure Supabee and seed paths |
-| Sync | `sync schema`, `sync data` | Pull and process linked project dumps |
+| Linked dumps | `sync schema`, `sync data` | Pull and process linked project dumps |
 | Processing | `schema`, `data` | Process existing SQL dump files |
 | Database | `db reset`, `db seed-remote`, `start` | Rebuild, seed, and start databases |
 | Migrations | `migration *`, `cutoff detect` | Audit and organize migration replay |

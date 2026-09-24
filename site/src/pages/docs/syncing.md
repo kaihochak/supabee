@@ -5,7 +5,7 @@ description: Pull linked project dumps and turn them into organized, validated S
 eyebrow: Workflows
 ---
 
-The `sync` commands combine a Supabase dump with Supabee's complete processing chain:
+`supabee sync schema` and `supabee sync data` fetch a fresh dump from the linked project before running Supabee's complete processing chain. Add `--no-sync` to either command to process a dump already on disk instead. The top-level `supabee schema` and `supabee data` commands also process local dumps and allow running a single step.
 
 1. Check migration alignment with the linked project.
 2. Dump schema or data through the Supabase CLI.
@@ -47,9 +47,7 @@ supabee sync data \
 
 ## Existing dump files
 
-Use [`supabee schema`](/docs/commands/schema/) or [`supabee data`](/docs/commands/data/) to process local dump files without fetching a new dump.
-
-Use `schema` or `data` without `sync` when you already have a dump on disk:
+Use `--no-sync` on these commands to process a local dump, or use [`supabee schema`](/docs/commands/sync-schema/) / [`supabee data`](/docs/commands/sync-data/) to run a local processing step:
 
 ```bash
 # Complete split → reconstruct → validate chain

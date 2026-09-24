@@ -23,6 +23,7 @@ type StepCliOptions = {
   output?: string;
   backup?: boolean;
   force?: boolean;
+  sync?: boolean;
 };
 
 function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOptions = {}): string[] {
@@ -174,10 +175,10 @@ program
     await runInitCommand([]);
   });
 
-for (const commandName of ['schema', 'data']) {
+  for (const commandName of ['schema', 'data']) {
   program
     .command(`${commandName} [step] [reconstructed]`)
-    .description(`${commandName} split/reconstruct/validate (full chain when step is omitted)`)
+    .description(`${commandName} split/reconstruct/validate (process an existing local dump)`)
     .option('--input <path>', 'Input SQL file or split folder (reconstruct)')
     .option('--output <path>', 'Split output folder (split) or reconstructed file')
     .option('--backup', 'Backup existing split output before replacing')
@@ -194,7 +195,7 @@ for (const commandName of ['schema', 'data']) {
 
 const syncCommand = program
   .command('sync')
-  .description('Dump from linked project, then split/reconstruct/validate')
+  .description('Dump from a linked project, or use --no-sync to process a local dump')
   .addHelpText(
     'after',
     `
@@ -204,8 +205,9 @@ Main Usage
 
 Examples
   supabee sync schema
-  supabee sync data --input supabase/seeds/prod-data.sql
-  supabee sync data --no-backup
+  supabee sync schema --no-sync --input path/to/schema.sql
+  supabee sync data
+  supabee sync data --no-sync --input path/to/data.sql
 
 Note
   Requires \`supabase link\` to be configured for this project.
@@ -214,23 +216,45 @@ Note
 
 syncCommand
   .command('schema')
-  .description('Run `supabase db dump`, then process schema files')
-  .option('--input <path>', 'Dump output path (defaults to schema.input from config)')
+  .description('Dump linked schema and process it (use --no-sync to process an existing dump)')
+  .option('--no-sync', 'Process an existing local schema dump without calling Supabase')
+  .option('--input <path>', 'Dump output path, or existing local schema dump with --no-sync')
   .option('--output <path>', 'Split output path override for schema processing')
   .option('--backup', 'Backup existing split output before replacing')
   .option('--no-backup', 'Do not backup dirty split output folder before split')
   .option('--force', 'Skip linked migration alignment preflight for sync')
-  .action((options: StepCliOptions = {}) => runSyncCommand('schema', options));
+  .action((options: StepCliOptions = {}) => {
+    if (options.sync === false) {
+      if (options.force) {
+        console.error('--force cannot be used with --no-sync.');
+        process.exitCode = 1;
+        return;
+      }
+      return runSchemaCommand(buildStepArgs(undefined, undefined, options));
+    }
+    return runSyncCommand('schema', options);
+  });
 
 syncCommand
   .command('data')
-  .description('Run `supabase db dump --data-only`, then process data files')
-  .option('--input <path>', 'Dump output path (defaults to data.input from config)')
+  .description('Dump linked data and process it (use --no-sync to process an existing dump)')
+  .option('--no-sync', 'Process an existing local data dump without calling Supabase')
+  .option('--input <path>', 'Dump output path, or existing local data dump with --no-sync')
   .option('--output <path>', 'Split output path override for data processing')
   .option('--backup', 'Backup existing split output before replacing')
   .option('--no-backup', 'Do not backup dirty split output folder before split')
   .option('--force', 'Skip linked migration alignment preflight for sync')
-  .action((options: StepCliOptions = {}) => runSyncCommand('data', options));
+  .action((options: StepCliOptions = {}) => {
+    if (options.sync === false) {
+      if (options.force) {
+        console.error('--force cannot be used with --no-sync.');
+        process.exitCode = 1;
+        return;
+      }
+      return runDataCommand(buildStepArgs(undefined, undefined, options));
+    }
+    return runSyncCommand('data', options);
+  });
 
 const cutoffCommand = program.command('cutoff').description('Cutoff detection helpers');
 

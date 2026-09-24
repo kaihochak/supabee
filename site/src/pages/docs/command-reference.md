@@ -11,18 +11,16 @@ Choose a command below for its full behavior, options, and examples. The workflo
 
 - [`supabee init`](/docs/commands/init/)
 
-## Sync and processing
+## Schema and data
 
 - [`supabee sync schema`](/docs/commands/sync-schema/)
 - [`supabee sync data`](/docs/commands/sync-data/)
-- [`supabee schema`](/docs/commands/schema/)
-- [`supabee data`](/docs/commands/data/)
 
 ## Database lifecycle
 
+- [`supabee start`](/docs/commands/start/)
 - [`supabee db reset`](/docs/commands/db-reset/)
 - [`supabee db seed-remote`](/docs/commands/db-seed-remote/)
-- [`supabee start`](/docs/commands/start/)
 
 ## Migration utilities
 
@@ -32,10 +30,6 @@ Choose a command below for its full behavior, options, and examples. The workflo
 - [`supabee migration unmark`](/docs/commands/migration-unmark/)
 - [`supabee migration split-mixed`](/docs/commands/migration-split-mixed/)
 
-## Workflows
-
-- [Syncing schema and data](/docs/syncing/)
-- [Database lifecycle](/docs/database-lifecycle/)
-- [Migration management](/docs/migrations/)
+## Other Supabase commands
 
 Commands Supabee does not own (such as `supabase migration up` and `supabase db dump`) are forwarded to the Supabase CLI. See [Supabase CLI documentation](https://supabase.com/docs/reference/cli).

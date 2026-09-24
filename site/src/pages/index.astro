@@ -16,6 +16,7 @@ const ordersSchema = `create table public.orders (
 
 const replaceOrderStatus = `alter table public.orders drop column status;
 alter table public.orders add column status_id bigint not null default 1;`;
+
 ---
 
 <BaseLayout>
@@ -36,10 +37,10 @@ alter table public.orders add column status_id bigint not null default 1;`;
             More control over Supabase resets and dumps.
           </h1>
           <p
-          class="text-body mx-auto mt-5 max-w-7xl text-balance text-muted-foreground lg:mx-0"
+            class="text-body mx-auto mt-5 max-w-7xl text-balance text-muted-foreground lg:mx-0"
           >
-            Supabee turns linked database dumps into reviewable files and replays
-            migrations around your seed data in the right order.
+            Supabee turns linked database dumps into reviewable files and
+            replays migrations around your seed data in the right order.
           </p>
           <div
             class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start"
@@ -66,199 +67,236 @@ alter table public.orders add column status_id bigint not null default 1;`;
           <p class="text-overline mb-3 uppercase text-brand-strong">
             Why Supabee
           </p>
-          <h2 class="text-display">The problems <span class="text-brand-strong">Supabee</span> solves.</h2>
+          <h2 class="text-display">
+            The problems <span class="text-brand-strong">Supabee</span> solves.
+          </h2>
         </header>
         <div class="mx-auto max-w-7xl">
           <section
             class="mt-12 grid gap-5 pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
           >
-            <h2 class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
-            <a
-              href="/docs/database-lifecycle/#reset-a-local-database"
-              class="text-foreground no-underline transition hover:text-brand-strong"
-              >supabee db reset <span aria-hidden="true" class="text-label align-super">↗</span></a>
+            <h2
+              class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start"
+            >
+              <a
+                href="/docs/database-lifecycle/#reset-a-local-database"
+                class="text-foreground no-underline transition hover:text-brand-strong"
+                >supabee db reset <span
+                  aria-hidden="true"
+                  class="text-label align-super">↗</span
+                ></a
+              >
             </h2>
             <div class="min-w-0">
-          <p class="text-body my-4 text-foreground">
-            Say you are working on an order inventory system with a table like
-            this:
-          </p>
-          <OrdersTable variant="initial" />
+              <p class="text-body my-4 text-foreground">
+                Say you are working on an order inventory system with a table
+                like this:
+              </p>
+              <OrdersTable variant="initial" />
 
-          <p class="text-body my-4 text-foreground">
-            A new requirement replaces the <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status</code
-            > column, so you write a migration:
-          </p>
-          <Code
-            code={replaceOrderStatus}
-            lang="sql"
-            theme="github-dark"
-            class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg"
-          />
-          <p class="text-body my-4 text-foreground">
-            Testing locally with <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase migration up</code
-            > succeeds. <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db push</code
-            > would work against the existing database too:
-          </p>
-          <OrdersTable variant="after-migration" />
+              <p class="text-body my-4 text-foreground">
+                A new requirement replaces the <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >status</code
+                > column, so you write a migration:
+              </p>
+              <Code
+                code={replaceOrderStatus}
+                lang="sql"
+                theme="github-dark"
+                class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg"
+              />
+              <p class="text-body my-4 text-foreground">
+                Testing locally with <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabase migration up</code
+                > succeeds. <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabase db push</code
+                > would work against the existing database too:
+              </p>
+              <OrdersTable variant="after-migration" />
 
-          <h3 class="text-heading mb-3 mt-14 scroll-mt-24 text-foreground">
-            The problem
-          </h3>
+              <h3 class="text-heading mb-3 mt-14 scroll-mt-24 text-foreground">
+                The problem
+              </h3>
 
-          <p class="text-body my-4 text-foreground">
-            After you push the migration, CI may run <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db reset</code
-            >, or a teammate may run it locally. Reset reloads the seed, exposing
-            a problem the earlier migration checks did not catch.
-          </p>
-          <p class="text-body my-4 text-foreground">
-            The <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status</code
-            > column no longer exists because the migration already replaced it
-            with <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status_id</code
-            > before seeding. You may get an error like this:
-          </p>
-          <pre
-            class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 bg-code p-5 font-mono text-code-foreground shadow-lg"><code>Applying migration 20260310090000_replace_order_status.sql...
+              <p class="text-body my-4 text-foreground">
+                After you push the migration, CI may run <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabase db reset</code
+                >, or a teammate may run it locally. Reset reloads the seed,
+                exposing a problem the earlier migration checks did not catch.
+              </p>
+              <p class="text-body my-4 text-foreground">
+                The <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >status</code
+                > column no longer exists because the migration already replaced it
+                with <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >status_id</code
+                > before seeding. You may get an error like this:
+              </p>
+              <pre
+                class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 bg-code p-5 font-mono text-code-foreground shadow-lg"><code>Applying migration 20260310090000_replace_order_status.sql...
 Seeding data from supabase/seed.sql...
 ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)</code></pre>
-          <OrdersTable variant="seed-conflict" />
-          <p class="text-body my-4 text-foreground">
-            The difference is the sequence: <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db reset</code
-            > applies every migration first, then loads the seed. <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db push</code
-            > and <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase migration up</code
-            > apply migrations to the existing database without reloading the seed.
-          </p>
-          <div
-            class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
-          >
-            <MigrationSequence variant="reset-conflict" class="min-w-0" />
-            <div
-              class="text-danger my-5 flex items-center justify-center gap-2 md:my-0 md:self-start md:-mt-2"
-              role="img"
-              aria-label="Different execution order"
-            >
-              <span class="h-px flex-1 bg-border md:hidden"></span>
-              <span aria-hidden="true" class="text-title font-mono text-danger">≠</span>
-              <span class="text-label md:sr-only">Different order</span>
-              <span class="h-px flex-1 bg-border md:hidden"></span>
-            </div>
-            <MigrationSequence variant="db-push" class="min-w-0" />
-          </div>
+              <OrdersTable variant="seed-conflict" />
+              <p class="text-body my-4 text-foreground">
+                The difference is the sequence: <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabase db reset</code
+                > applies every migration first, then loads the seed. <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabase db push</code
+                > and <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabase migration up</code
+                > apply migrations to the existing database without reloading the
+                seed.
+              </p>
+              <div
+                class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
+              >
+                <MigrationSequence variant="reset-conflict" class="min-w-0" />
+                <div
+                  class="text-danger my-5 flex items-center justify-center gap-2 md:my-0 md:self-start md:-mt-2"
+                  role="img"
+                  aria-label="Different execution order"
+                >
+                  <span class="h-px flex-1 bg-border md:hidden"></span>
+                  <span
+                    aria-hidden="true"
+                    class="text-title font-mono text-danger">≠</span
+                  >
+                  <span class="text-label md:sr-only">Different order</span>
+                  <span class="h-px flex-1 bg-border md:hidden"></span>
+                </div>
+                <MigrationSequence variant="db-push" class="min-w-0" />
+              </div>
 
-          <h3 class="text-heading mb-3 mt-14 scroll-mt-24 text-foreground">
-            The solution
-          </h3>
-          <p class="text-body my-4 text-foreground">
-            The simplest workaround is to change the seed script so it no longer
-            inserts the removed <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >status</code
-            > column. But with a large database, keeping seed data compatible with
-            every schema change quickly becomes impractical.
-          </p>
-          <div
-            class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
-          >
-            <MigrationSequence variant="supabee-reset" class="min-w-0" />
-            <div
-              class="my-5 flex items-center justify-center gap-2 md:my-0 md:self-start md:-mt-2"
-              role="img"
-              aria-label="Same execution order"
-            >
-              <span class="h-px flex-1 bg-border md:hidden"></span>
-              <span aria-hidden="true" class="text-title font-mono text-foreground">=</span>
-              <span class="text-label md:sr-only">Same order</span>
-              <span class="h-px flex-1 bg-border md:hidden"></span>
-            </div>
-            <MigrationSequence variant="db-push" class="min-w-0" />
-          </div>
+              <h3 class="text-heading mb-3 mt-14 scroll-mt-24 text-foreground">
+                The solution
+              </h3>
+              <p class="text-body my-4 text-foreground">
+                The simplest workaround is to change the seed script so it no
+                longer inserts the removed <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >status</code
+                > column. But with a large database, keeping seed data compatible
+                with every schema change quickly becomes impractical.
+              </p>
+              <div
+                class="my-8 grid w-full max-w-7xl md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start md:gap-4"
+              >
+                <MigrationSequence variant="supabee-reset" class="min-w-0" />
+                <div
+                  class="my-5 flex items-center justify-center gap-2 md:my-0 md:self-start md:-mt-2"
+                  role="img"
+                  aria-label="Same execution order"
+                >
+                  <span class="h-px flex-1 bg-border md:hidden"></span>
+                  <span
+                    aria-hidden="true"
+                    class="text-title font-mono text-foreground">=</span
+                  >
+                  <span class="text-label md:sr-only">Same order</span>
+                  <span class="h-px flex-1 bg-border md:hidden"></span>
+                </div>
+                <MigrationSequence variant="db-push" class="min-w-0" />
+              </div>
             </div>
           </section>
 
           <section
             class="mt-24 grid gap-5 pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
           >
-            <h2 class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
-            <a
-              href="/docs/syncing/#sync-data"
-              class="text-foreground no-underline transition hover:text-brand-strong"
-              >supabee sync data <span aria-hidden="true" class="text-label align-super">↗</span></a>
+            <h2
+              class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start"
+            >
+              <a
+                href="/docs/syncing/#sync-data"
+                class="text-foreground no-underline transition hover:text-brand-strong"
+                >supabee sync data <span
+                  aria-hidden="true"
+                  class="text-label align-super">↗</span
+                ></a
+              >
             </h2>
             <div class="min-w-0">
-          <p class="text-body my-4 text-foreground">
-            <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabase db dump --data-only</code
-            > puts every table into one seed file. Once a project contains thousands
-            of rows, any table change becomes a diff inside the same enormous file,
-            and reproducing a bug starts with finding the right rows inside it.
-          </p>
-          <p class="text-body my-4 text-foreground">
-            <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabee sync data</code
-            > splits the dump into one file per table, numbered in load order. Large
-            tables can span multiple files. Supabee then reconstructs and validates
-            the result so you know the split files still load.
-          </p>
-          <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
-            <SchemaSyncSequence variant="data-dump" />
-            <SchemaSyncSequence variant="sync-data" />
-          </div>
+              <p class="text-body my-4 text-foreground">
+                <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabase db dump --data-only</code
+                >
+                {" "}dumps your seed data into a single file. On the same orders
+                table.
+              </p>
+              <p class="text-body my-4 text-foreground">
+                For data-intensive projects, a single file becomes difficult to
+                review and edit. Every table change is buried in one enormous
+                diff, and reproducing a bug means finding the right rows among
+                everything else.
+              </p>
+              <p class="text-body my-4 text-foreground">
+                For example, you change a few rows to reproduce a bug or empty a table to
+                check a blank state. With one giant file, every round starts by searching
+                for those rows again.
+              </p>
+
+              <p class="text-body my-4 text-foreground">
+                <code
+                  class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
+                  >supabee sync data</code
+                >
+                {" "}dumps the data and splits it into numbered files in load
+                order, then reconstructs and validates the result so you know
+                the split files still load.
+              </p>
+              <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+                <SchemaSyncSequence variant="data-dump" />
+                <SchemaSyncSequence variant="sync-data" />
+              </div>
+              <p class="text-body my-4 text-foreground">
+                Per-table files are numbered in load order. The split is by
+                size, not just by table, so a table with a hundred thousand rows
+                can become several files while small tables get one or two.
+              </p>
             </div>
           </section>
 
           <section
             class="mt-12 grid gap-5 pt-8 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-12 lg:pt-12"
           >
-            <h2 class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
-            <a
-              href="/docs/syncing/#sync-schema"
-              class="text-foreground no-underline transition hover:text-brand-strong"
-              >supabee sync schema <span aria-hidden="true" class="text-label align-super">↗</span></a>
+            <h2
+              class="text-title scroll-mt-24 lg:sticky lg:top-24 lg:self-start"
+            >
+              <a
+                href="/docs/syncing/#sync-schema"
+                class="text-foreground no-underline transition hover:text-brand-strong"
+                >supabee sync schema <span
+                  aria-hidden="true"
+                  class="text-label align-super">↗</span
+                ></a
+              >
             </h2>
             <div class="min-w-0">
-          <p class="text-body my-4 text-foreground">
-            A schema dump has the same problem: every table, function, type,
-            policy, trigger, view, and index arrives in one file.
-          </p>
-          <p class="text-body my-4 text-foreground">
-            <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >supabee sync schema</code
-            > keeps the valid ordering from the original dump while splitting it into
-            a folder tree with one file per object. An <code
-              class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground"
-              >order-index.json</code
-            > records the full sequence so Supabee can rebuild the dump and verify
-            that the result still matches.
-          </p>
-          <p class="text-body my-4 text-foreground">
-            You get per-object schema files without having to work out the
-            dependency order yourself.
-          </p>
-          <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
-            <SchemaSyncSequence variant="db-dump" />
-            <SchemaSyncSequence variant="sync-schema" />
-          </div>
+              <p class="text-body my-4 text-foreground">
+                <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabase db dump</code>{' '}has the same shape of problem. Your whole schema arrives as one file: every table, function, type, policy, and trigger in the project, in one place.
+              </p>
+              <h3 class="text-heading mb-3 mt-10 text-foreground">Declarative schemas</h3>
+              <p class="text-body my-4 text-foreground">
+                Other than being difficult to review and edit, Supabase&apos;s declarative workflow wants a readable schema definition, the same way Prisma, Drizzle or Django let you edit one table definition and generate the migration from it.
+              </p>
+              <h3 class="text-heading mb-3 mt-10 text-foreground">The solution</h3>
+              <p class="text-body my-4 text-foreground">
+                <code class="text-code-ui rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-foreground">supabee sync schema</code> keeps the dump&apos;s valid order while splitting it into a folder tree, one file per object. It records the source lines and full sequence so Supabee can rebuild and validate the result without you managing dependencies yourself.
+              </p>
+              <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+                <SchemaSyncSequence variant="db-dump" />
+                <SchemaSyncSequence variant="sync-schema" />
+              </div>
             </div>
           </section>
         </div>

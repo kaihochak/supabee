@@ -1,0 +1,19 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+import SchemaSyncSequence from '../../components/SchemaSyncSequence.astro';
+---
+
+<BlogLayout title="Split a Supabase schema without losing its order" description="Why one Supabase schema dump is hard to work with, and how Supabee sync schema creates ordered per-object files." canonicalPath="/blog/supabee-sync-schema/" hideEyebrow={true}>
+  <p><code>supabase db dump</code> has the same shape of problem. Your whole schema arrives as one file: every table, function, type, policy, and trigger in the project, in one place.</p>
+  <h2>Declarative schemas</h2>
+  <p>Other than being difficult to review and edit, Supabase&apos;s declarative workflow wants a readable schema definition, the same way Prisma, Drizzle or Django let you edit one table definition and generate the migration from it.</p>
+  <p>If you write those definitions by hand, you split the schema into a file per object yourself, and then the ordering becomes your problem: types before the functions that use them, tables before the policies that reference them.</p>
+  <h2>Use <code>supabee sync schema</code></h2>
+  <pre><code>supabee sync schema</code></pre>
+  <p><code>supabee sync schema</code> keeps the dump&apos;s valid order while splitting it into a folder tree, one file per object. It records the source lines and full sequence so Supabee can rebuild and validate the result without you managing dependencies yourself.</p>
+  <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+    <SchemaSyncSequence variant="db-dump" />
+    <SchemaSyncSequence variant="sync-schema" />
+  </div>
+  <p>So you get the per-object files without working out the dependency order yourself. The seed workflow has nothing equivalent, because rows do not depend on each other the way schema objects do.</p>
+</BlogLayout>

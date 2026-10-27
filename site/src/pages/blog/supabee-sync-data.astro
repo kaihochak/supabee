@@ -1,0 +1,24 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+import SchemaSyncSequence from '../../components/SchemaSyncSequence.astro';
+---
+
+<BlogLayout title="Split Supabase seed data into reviewable files" description="Why one giant Supabase seed dump is hard to review and edit, and how Supabee sync data splits it safely." canonicalPath="/blog/supabee-sync-data/" hideEyebrow={true}>
+  <h2>One giant seed file</h2>
+  <p><code>supabase db dump --data-only</code> dumps your seed data into a single file. On the same orders table, it looks like this:</p>
+  <pre><code>{`-- supabase/seeds/prod-data.sql
+INSERT INTO "public"."orders" ("id", "customer_id", "total", "status") VALUES
+  ('bd6bdd16-a965-4576-97af-46cd98ed2efd', '2b2ef286-c72d-434b-8f7c-5c185052fb17', 42.50, 'paid'),
+  ('c81a0f42-1f0e-4a6d-9c33-70bb1f3a91d4', '5f2a3c19-88b7-4e21-9a0c-2d7e64b1f8aa', 18.00, 'pending'),
+  -- ... about 100,000 more rows, then every other table after it`}</code></pre>
+  <p>For data-intensive projects, a single file becomes difficult to review and edit. Every table change is buried in one enormous diff, and reproducing a bug means finding the right rows among everything else.</p>
+  <p>For example, you change a few rows to reproduce a bug or empty a table to check a blank state. With one giant file, every round starts by searching for those rows again.</p>
+  <h2>Use <code>supabee sync data</code></h2>
+  <pre><code>supabee sync data</code></pre>
+  <p><code>supabee sync data</code> dumps the data and splits it into numbered files in load order, then reconstructs and validates the result so you know the split files still load.</p>
+  <div class="my-10 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+    <SchemaSyncSequence variant="data-dump" />
+    <SchemaSyncSequence variant="sync-data" />
+  </div>
+  <p>Per-table files are numbered in load order. The split is by size, not just by table, so a table with a hundred thousand rows can become several files while small tables get one or two. <code>embeddings</code>, for example, can run across files 43 to 51.</p>
+</BlogLayout>

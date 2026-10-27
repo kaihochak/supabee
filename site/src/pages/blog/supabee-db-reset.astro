@@ -1,0 +1,37 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+import OrdersTable from '../../components/OrdersTable.astro';
+import MigrationSequence from '../../components/MigrationSequence.astro';
+import { Code } from 'astro:components';
+
+const replaceOrderStatus = `alter table public.orders drop column status;
+alter table public.orders add column status_id bigint not null default 1;`;
+---
+
+<BlogLayout title="How to Run Migrations After Seeding with supabase db reset" description="Why Supabase db reset can fail after a schema change, and how Supabee keeps local resets aligned with production." canonicalPath="/blog/supabee-db-reset/" hideEyebrow={true}>
+  <p>Say you are working on an order inventory system with a table like this:</p>
+  <OrdersTable variant="initial" />
+  <p>A new requirement replaces the <code>status</code> column, so you write a migration:</p>
+  <Code code={replaceOrderStatus} lang="sql" theme="github-dark" class="text-code-ui my-6 overflow-x-auto rounded-xl border border-white/10 p-5 font-mono shadow-lg" />
+  <p>Testing locally with <code>supabase migration up</code> succeeds. <code>supabase db push</code> would work against the existing database too:</p>
+  <OrdersTable variant="after-migration" />
+  <p>After you push the migration, CI may run <code>supabase db reset</code>, or a teammate may run it locally. Reset reloads the seed, exposing a problem the earlier migration checks did not catch.</p>
+  <p>The <code>status</code> column no longer exists because the migration replaced it with <code>status_id</code> before seeding. You may get an error like this:</p>
+  <pre><code>{`Applying migration 20260310090000_replace_order_status.sql...
+Seeding data from supabase/seed.sql...
+ERROR: column "status" of relation "orders" does not exist (SQLSTATE 42703)`}</code></pre>
+  <OrdersTable variant="seed-conflict" />
+  <p>The difference is the sequence: <code>supabase db reset</code> applies every migration first, then loads the seed. <code>supabase db push</code> and <code>supabase migration up</code> apply migrations to the existing database without reloading the seed.</p>
+  <div class="my-8 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+    <MigrationSequence variant="reset-conflict" />
+    <MigrationSequence variant="db-push" />
+  </div>
+  <h2>The solution</h2>
+  <p>The simplest workaround is to change the seed script so it no longer inserts the removed <code>status</code> column. But with a large database, keeping seed data compatible with every schema change quickly becomes impractical.</p>
+  <h3>Use <code>supabee db reset</code></h3>
+  <p>Supabee finds the migration cutoff represented by your seed data and temporarily sets newer migrations aside. It runs <code>supabase db reset</code> to load the seed against the matching schema, then restores and applies those newer migrations with <code>supabase migration up</code>.</p>
+  <div class="my-8 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+    <MigrationSequence variant="supabee-reset" />
+    <MigrationSequence variant="db-push" />
+  </div>
+</BlogLayout>

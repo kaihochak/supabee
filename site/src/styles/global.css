@@ -153,12 +153,11 @@
   ::selection { background: color-mix(in oklab, var(--brand) 28%, transparent); }
 }
 
-.prose-docs { color: var(--foreground); font-size: var(--text-body); font-weight: var(--text-body--font-weight); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
+.prose-docs { color: color-mix(in oklab, var(--foreground) 85%, var(--muted-foreground)); font-size: var(--text-body); font-weight: var(--text-body--font-weight); line-height: var(--text-body--line-height); letter-spacing: var(--text-body--letter-spacing); }
 .prose-docs h1 { margin-bottom: .75rem; font-size: var(--text-title); font-weight: var(--text-title--font-weight); letter-spacing: var(--text-title--letter-spacing); line-height: var(--text-title--line-height); }
 .prose-docs h2 { margin-top: 3rem; margin-bottom: 1rem; scroll-margin-top: 6rem; font-size: var(--text-heading); font-weight: var(--text-heading--font-weight); letter-spacing: var(--text-heading--letter-spacing); line-height: var(--text-heading--line-height); }
 .prose-docs h3 { margin-top: 2rem; margin-bottom: .75rem; scroll-margin-top: 6rem; font-size: var(--text-heading); font-weight: var(--text-heading--font-weight); letter-spacing: var(--text-heading--letter-spacing); line-height: var(--text-heading--line-height); }
 .prose-docs p, .prose-docs ul, .prose-docs ol { margin: 1rem 0; }
-.prose-docs > :last-child:is(p, ul, ol, pre, blockquote, table) { margin-bottom: 0; }
 .prose-docs ul, .prose-docs ol { padding-left: 1.4rem; }
 .prose-docs ul { list-style: disc; }
 .prose-docs ol { list-style: decimal; }
@@ -166,12 +165,16 @@
 .prose-docs a { color: var(--brand-strong); text-decoration: underline; text-underline-offset: 3px; }
 .prose-docs strong { color: var(--foreground); font-weight: var(--text-label--font-weight); }
 .prose-docs code:not(pre code) { border: 1px solid var(--border); border-radius: .4rem; background: var(--muted); padding: .12rem .36rem; font-family: var(--font-mono); font-size: var(--text-code-ui); font-weight: var(--text-code-ui--font-weight); line-height: var(--text-code-ui--line-height); letter-spacing: var(--text-code-ui--letter-spacing); }
+.prose-docs .install-command-text { border: 0; border-radius: 0; background: transparent; padding: 0; }
 .prose-docs pre { position: relative; overflow-x: auto; margin: 1.4rem 0; border: 1px solid color-mix(in oklab, var(--code-foreground) 12%, transparent); border-radius: var(--radius-xl); background: var(--code); color: var(--code-foreground); padding: 1.15rem 1.25rem; box-shadow: var(--shadow-lg); }
 .prose-docs pre code { color: inherit; font-family: var(--font-mono); font-size: var(--text-code-ui); font-weight: var(--text-code-ui--font-weight); line-height: var(--text-code-ui--line-height); letter-spacing: var(--text-code-ui--letter-spacing); }
 .prose-docs blockquote { margin: 1.5rem 0; border-left: 3px solid var(--brand); border-radius: 0 .75rem .75rem 0; background: var(--muted); padding: .85rem 1rem; }
 .prose-docs table { width: 100%; margin: 1.5rem 0; border-collapse: collapse; font-size: var(--text-small); font-weight: var(--text-small--font-weight); line-height: var(--text-small--line-height); letter-spacing: var(--text-small--letter-spacing); }
 .prose-docs th, .prose-docs td { border-bottom: 1px solid var(--border); padding: .7rem .75rem; text-align: left; }
 .prose-docs th { color: var(--foreground); font-weight: var(--text-label--font-weight); }
+.prose-docs .orders-table table { margin: 0; font-size: var(--text-code-ui); font-weight: var(--text-code-ui--font-weight); line-height: var(--text-code-ui--line-height); letter-spacing: var(--text-code-ui--letter-spacing); }
+.prose-docs .orders-table th, .prose-docs .orders-table td { border-bottom: 0; padding: .375rem; text-align: left; }
+.prose-docs .orders-table h3 { margin: 0; font-size: var(--text-code-ui); font-weight: var(--text-code-ui--font-weight); line-height: var(--text-code-ui--line-height); letter-spacing: var(--text-code-ui--letter-spacing); }
 
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }

@@ -1,0 +1,32 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/Header.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  eyebrow?: string;
+  hideDescription?: boolean;
+  listing?: boolean;
+  hideEyebrow?: boolean;
+}
+
+const { title, description, canonicalPath, eyebrow = 'Supabee', hideDescription = false, listing = false, hideEyebrow = false } = Astro.props;
+---
+
+<BaseLayout title={title} description={description} canonicalPath={canonicalPath}>
+  <Header />
+  <div>
+    <main class="min-h-[calc(100vh-3.5rem)]">
+      <article class:list={['mx-auto max-w-4xl px-5 pb-24 pt-28', !listing && 'prose-docs']}>
+        <div>
+          {!hideEyebrow && <p class="text-overline mb-3 uppercase text-brand-strong">{eyebrow}</p>}
+          <h1 class:list={['text-title', !listing && 'mb-3']}>{title}</h1>
+      {!hideDescription && <p class="text-body m-0 text-muted-foreground">{description}</p>}
+        </div>
+        <slot />
+      </article>
+    </main>
+  </div>
+</BaseLayout>

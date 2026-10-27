@@ -15,9 +15,11 @@ eyebrow: Start here
 
 Install it globally for direct use:
 
-```bash
-npm install -g supabee
-```
+<div class="my-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-2 pl-5 text-left shadow-lg">
+  <span class="select-none text-brand">$</span>
+  <code class="install-command-text text-code-ui min-w-0 flex-1 overflow-x-auto whitespace-nowrap">npm install -g supabee</code>
+  <button data-copy="npm install -g supabee" class="text-small shrink-0 cursor-pointer rounded-lg border border-border bg-muted px-3 py-2 text-foreground">Copy</button>
+</div>
 
 You can also run it without installing globally:
 

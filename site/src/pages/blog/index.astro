@@ -1,0 +1,39 @@
+---
+import BlogLayout from '../../layouts/BlogLayout.astro';
+---
+
+<BlogLayout
+  title="Blogs"
+  description="Articles about Supabase resets, seed data, and schema workflows."
+  canonicalPath="/blog/"
+  hideDescription={true}
+  listing={true}
+  hideEyebrow={true}
+>
+  <nav class="mt-8 space-y-4" aria-label="Blog articles">
+    <a href="/blog/supabee-db-reset/" class="block rounded-lg bg-muted/20 p-5 !no-underline transition-colors hover:bg-muted/40">
+      <div class="flex items-start justify-between gap-6">
+        <div>
+          <h2 class="text-heading mb-2 mt-0 text-foreground">How to Run Migrations After Seeding with supabase db reset</h2>
+          <p class="text-small m-0 text-muted-foreground">Why <code>supabase db reset</code> can fail after a schema change.</p>
+        </div>
+      </div>
+    </a>
+    <a href="/blog/supabee-sync-data/" class="block rounded-lg bg-muted/20 p-5 !no-underline transition-colors hover:bg-muted/40">
+      <div class="flex items-start justify-between gap-6">
+        <div>
+          <h2 class="text-heading mb-2 mt-0 text-foreground">Split Supabase seed data into reviewable files</h2>
+          <p class="text-small m-0 text-muted-foreground">Why one giant seed dump is hard to review and edit.</p>
+        </div>
+      </div>
+    </a>
+    <a href="/blog/supabee-sync-schema/" class="block rounded-lg bg-muted/20 p-5 !no-underline transition-colors hover:bg-muted/40">
+      <div class="flex items-start justify-between gap-6">
+        <div>
+          <h2 class="text-heading mb-2 mt-0 text-foreground">Split a Supabase schema without losing its order</h2>
+          <p class="text-small m-0 text-muted-foreground">How to create per-object schema files without managing dependencies by hand.</p>
+        </div>
+      </div>
+    </a>
+  </nav>
+</BlogLayout>

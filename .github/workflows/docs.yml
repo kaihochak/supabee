@@ -1,0 +1,50 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - prod
+    paths:
+      - 'site/**'
+      - 'scripts/check-typography.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'scripts/check-typography.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docs.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install site dependencies
+        run: npm --prefix site ci
+
+      - name: Check typography
+        run: node scripts/check-typography.mjs
+
+      - name: Build docs
+        run: npm --prefix site run build

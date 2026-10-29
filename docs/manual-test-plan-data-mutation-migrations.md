@@ -355,11 +355,7 @@ This phase proves that the published package behaves the same as the tarball.
 
 ### 13. Publish the package
 
-In the `supabee` repo:
-
-```bash
-npm publish --access public
-```
+Follow [Publishing](publishing.md): merge the version, lockfile, and changelog into `prod`, then push the matching stable version tag. The **Publish npm package** workflow runs release checks and publishes the tested tarball using npm trusted publishing.
 
 Record:
 

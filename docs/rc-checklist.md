@@ -2,6 +2,8 @@
 
 Use this checklist before publishing `supabee` to npm.
 
+Follow [Publishing](publishing.md) for the version bump, trusted publisher setup, tag-triggered release workflow, and the separate docs website deployment.
+
 ## Build + Package
 
 - `npm install`
@@ -37,5 +39,7 @@ Use this checklist before publishing `supabee` to npm.
 - README commands/examples match current CLI output.
 - PRD terminology matches `schema` / `data` command contract.
 - `CHANGELOG`/release notes drafted for target version.
-- Publish command ready:
-  - `npm publish --access public`
+- Version and lockfile match the planned stable `vX.Y.Z` tag.
+- Release commit is on `prod` and package CI is green.
+- npm trusted publisher is configured for `kaihochak/supabee`, workflow `publish.yml`, with direct publishing allowed.
+- Push the release tag to trigger **Publish npm package**; CI smoke-tests and publishes the tarball.

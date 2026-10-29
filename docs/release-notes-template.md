@@ -31,3 +31,6 @@
 - [ ] `npm run test`
 - [ ] `npm run pack:check`
 - [ ] Tarball install smoke test complete
+- [ ] Tag matches package version, lockfile, and dated changelog entry
+- [ ] Publish npm package workflow completed
+- [ ] Post-publish integration checks complete

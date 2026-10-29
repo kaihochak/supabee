@@ -1,0 +1,95 @@
+name: Publish npm package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: '0'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Validate release tag, metadata, and prod ancestry
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release.mjs
+
+  checks:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [validate, checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Ensure npm supports trusted publishing
+        run: npm install --global npm@11
+
+      - name: Install package dependencies
+        run: npm ci
+
+      - name: Build and pack release
+        id: pack
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const tarball = path.join(process.env.RUNNER_TEMP, `${pkg.name}-${pkg.version}.tgz`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `tarball=${tarball}\n`);
+          NODE
+
+      - name: Smoke test the packed CLI in a clean directory
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          smoke_dir="$(mktemp -d)"
+          npm install --prefix "$smoke_dir" --ignore-scripts --no-audit --no-fund "$TARBALL"
+          "$smoke_dir/node_modules/.bin/supabee" --help
+          test "$("$smoke_dir/node_modules/.bin/supabee" --version)" = "$EXPECTED_VERSION"
+          "$smoke_dir/node_modules/.bin/supabase-splitter" --help
+
+      - name: Publish the tested tarball to npm
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "$TARBALL" --access public --provenance

@@ -615,3 +615,5 @@ npm run pack:check
 ```
 
 RC gate checklist: `docs/rc-checklist.md`
+
+Package releases and docs deployments: [Publishing](docs/publishing.md).

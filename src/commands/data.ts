@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readSqlLines } from '../lib/sql-lines.js';
+import { SqlStatementBoundary } from '../lib/sql-statement-boundary.js';
 import { info, ok, error as errText } from '../lib/ui.js';
 import { resolveCommandConfig, type DataConfig } from '../lib/config.js';
 import { prepareSplitOutputDir } from '../lib/output.js';
@@ -48,7 +49,6 @@ function countRowsInInsertStatement(statement: string): number {
   for (const line of valueLines) {
     for (let i = 0; i < line.length; i += 1) {
       const char = line[i];
-      const prevChar = i > 0 ? line[i - 1] : '';
 
       if (!inString) {
         if (char === "'" || char === '"') {
@@ -59,7 +59,7 @@ function countRowsInInsertStatement(statement: string): number {
         } else if (char === ')') {
           parenCount -= 1;
         }
-      } else if (char === stringChar && prevChar !== '\\') {
+      } else if (char === stringChar) {
         inString = false;
         stringChar = '';
       }
@@ -102,7 +102,6 @@ function breakDownInsertStatement(
   for (const line of valueLines) {
     for (let i = 0; i < line.length; i += 1) {
       const char = line[i];
-      const prevChar = i > 0 ? line[i - 1] : '';
 
       if (!inString) {
         if (char === "'" || char === '"') {
@@ -113,7 +112,7 @@ function breakDownInsertStatement(
         } else if (char === ')') {
           parenCount -= 1;
         }
-      } else if (char === stringChar && prevChar !== '\\') {
+      } else if (char === stringChar) {
         inString = false;
         stringChar = '';
       }
@@ -125,7 +124,7 @@ function breakDownInsertStatement(
       }
     }
 
-    if (currentRow.trim() && !currentRow.endsWith('\n')) currentRow += '\n';
+    if (currentRow.trim()) currentRow += '\n';
   }
 
   if (currentRow.trim()) valueRows.push(currentRow.trim());
@@ -169,6 +168,7 @@ async function parseSeedFile(filePath: string): Promise<ParsedSeedContent> {
   let currentTable: string | null = null;
   let currentStatement: string[] = [];
   let inInsertStatement = false;
+  let boundary = new SqlStatementBoundary();
   let lineCount = 0;
 
   const lines = readSqlLines(fs.createReadStream(filePath, { encoding: 'utf8' }));
@@ -176,29 +176,26 @@ async function parseSeedFile(filePath: string): Promise<ParsedSeedContent> {
   for await (const line of lines) {
     lineCount += 1;
 
-    if (line.includes('SEQUENCE SET') || (line.trim().startsWith('SELECT') && line.includes('setval'))) {
+    if (!inInsertStatement && (line.includes('SEQUENCE SET') || (line.trim().startsWith('SELECT') && line.includes('setval')))) {
       sequenceLines.push(line);
     }
 
     if (!inInsertStatement && (line.trim().startsWith('--') || line.trim() === '')) continue;
 
-    const insertMatch = line.match(/^INSERT\s+INTO\s+(["`']?)([^."`'\s(]+)\1\.(["`']?)([^."`'\s(]+)\3/i);
+    const insertMatch = inInsertStatement
+      ? null
+      : line.match(/^INSERT\s+INTO\s+(["`']?)([^."`'\s(]+)\1\.(["`']?)([^."`'\s(]+)\3/i);
 
     if (insertMatch) {
-      if (inInsertStatement && currentTable && currentStatement.length > 0) {
-        if (!tableContent[currentTable]) tableContent[currentTable] = [];
-        tableContent[currentTable].push(currentStatement.join('\n'));
-      }
-
       currentTable = `${insertMatch[2]}.${insertMatch[4]}`;
-      currentStatement = [line];
+      currentStatement = [];
       inInsertStatement = true;
-      continue;
+      boundary = new SqlStatementBoundary();
     }
 
     if (inInsertStatement) {
       currentStatement.push(line);
-      if (line.trim().endsWith(';') && currentTable) {
+      if (boundary.consumeLine(line) && currentTable) {
         if (!tableContent[currentTable]) tableContent[currentTable] = [];
         tableContent[currentTable].push(currentStatement.join('\n'));
         currentStatement = [];

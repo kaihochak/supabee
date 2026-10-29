@@ -80,5 +80,6 @@ Verified end-to-end against a disposable Postgres (Docker) for both commands:
 ## Known follow-ups
 - [x] Detect the latest common cutoff from backtick-wrapped migration-list cells while retaining plain ASCII/Unicode support and rejecting malformed versions.
 - [x] Preserve U+2028/U+2029 in generated seeds using LF-only streamed line reading; keep parsing and reconstruction streamed to avoid whole-dump string-size limits. Verify exact JSON preservation through split/reconstruct, LF/CRLF inputs, chunk boundaries, and read errors.
+- [x] Preserve multiline INSERT values containing semicolons and blank lines; distinguish quoted data from SQL commands and sequence statements. Verify LF/CRLF inputs, quote escapes, dollar quotes, comments, row chunking, and standard-conforming values ending in backslashes.
 - [x] Redact connection strings in subprocess error output and keep direct `psql` connection URLs out of process arguments.
 - `--strict` / non-strict modes from the original MVP were not needed: seeding always stops on the first failing file (the only safe default for a resumable workflow).

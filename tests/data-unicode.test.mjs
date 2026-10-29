@@ -34,3 +34,26 @@ for (const newline of ['\n', '\r\n']) {
     assert.equal(fs.readdirSync(path.join(dir, 'split')).filter((file) => file.includes('scrape_metadata')).length, 3);
   });
 }
+
+test('a quoted value with a line ending in a semicolon does not end the statement', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'supabee-semicolon-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const sql = [
+    'INSERT INTO "pipeline"."sources" ("name", "taxonomy") VALUES',
+    "\t('COSCH', 'Arts and Design;",
+    "\tEngineering'),",
+    "\t('AIED', 'Education');",
+    '',
+    'INSERT INTO "public"."other" ("name") VALUES',
+    "\t('x');",
+  ].join('\n');
+  fs.writeFileSync(path.join(dir, 'input.sql'), sql);
+  fs.writeFileSync(path.join(dir, 'supabee.config.json'), JSON.stringify({ data: {} }));
+  execFileSync(process.execPath, [cli, 'data', 'split', '--input', 'input.sql', '--output', 'split'], { cwd: dir });
+  const files = fs.readdirSync(path.join(dir, 'split'));
+  const sources = files.filter((file) => file.includes('pipeline_sources'));
+  assert.equal(sources.length, 1);
+  const content = fs.readFileSync(path.join(dir, 'split', sources[0]), 'utf8');
+  assert.match(content, /'Arts and Design;\n\tEngineering'\),\n\t\('AIED', 'Education'\);/);
+  assert.equal(files.filter((file) => file.includes('public_other')).length, 1);
+});

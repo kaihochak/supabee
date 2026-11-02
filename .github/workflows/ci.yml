@@ -14,6 +14,11 @@ on:
       - 'docs/**'
       - '.github/workflows/docs.yml'
   workflow_call:
+    inputs:
+      ref:
+        description: Exact release commit to check
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -32,6 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
       - name: Setup Node

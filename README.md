@@ -249,13 +249,15 @@ For `--linked`, Supabee reads a port-5432 database URL from `SUPABASE_DB_URL` or
 
 Find the URL in **Supabase Dashboard → your project → Connect**:
 
+When you enter the URL at the interactive prompt, Supabee offers to add `/postgres` and `sslmode=require` if either is missing. Press Enter or `Y` to accept, or `n` to keep your input. Existing database names and SSL settings are preserved. URLs supplied through `--db-url` or environment variables are used as provided.
+
 - **Direct connection (`:5432`)** for networks with IPv6.
 - **Session pooler (`:5432`)** for IPv4-only networks.
 - Never use **Transaction pooler (`:6543`)** for this workflow.
 
 When targeting a remote with `--linked`, the auto-detected cutoff is read from that same remote, so it equals the latest migration already applied there. If you want a different cutoff (or are using `--db-url` to a database other than the linked one), pass the cutoff explicitly.
 
-**Resumable remote datasets.** `--linked` uses this workflow automatically. With an explicit target, add `--resumable-seed` (requires `--db-url`). Supabee runs `supabase db reset --no-seed` (a fast, healthy schema rebuild), seeds the data file-by-file via direct `psql`, then reapplies the post-cutoff migrations. Because each seed file is atomic, a timeout rolls that file back and you resume from it with [`db seed-remote --from`](#db-seed-remote) instead of redoing the whole load. See [`db seed-remote`](#db-seed-remote) for the seeding mechanics.
+**Resumable remote datasets.** Both `--linked` and `--db-url` enable resumable seeding automatically. Supabee runs `supabase db reset --no-seed`, seeds the data file-by-file via `psql`, then reapplies the post-cutoff migrations. This requires `psql` and a Direct connection or Session pooler on port 5432. Because each seed file is atomic, a failure rolls that file back and you resume from it with [`db seed-remote --from`](#db-seed-remote) instead of redoing the whole load. The older `--resumable-seed` flag is still accepted but is no longer needed. See [`db seed-remote`](#db-seed-remote) for the seeding mechanics.
 
 ```bash
 # default re-apply mode: supabase migration up
@@ -276,7 +278,7 @@ supabee db reset --linked
 SUPABASE_DB_URL="postgresql://...:5432/postgres?sslmode=require" supabee db reset --linked --yes
 
 # explicit remote target with resumable seeding
-supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --resumable-seed --yes
+supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --yes
 ```
 
 ### `db seed-remote`
@@ -308,7 +310,7 @@ supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require"
 supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --from 015_public_cities_69.sql
 ```
 
-> For linked projects, prefer [`db reset --linked`](#db-reset); resumable seeding is automatic. For an explicit target, use `db reset --db-url <url> --resumable-seed`. Reach for `db seed-remote` standalone to resume a failed seed or to seed without a reset.
+> Remote resets with either `db reset --linked` or `db reset --db-url <url>` use resumable seeding automatically. Reach for `db seed-remote` standalone to resume a failed seed or to seed without a reset.
 
 ### `start`
 
@@ -538,7 +540,7 @@ For `validate`, you can pass reconstructed path either as `--output <path>` or a
 - `--linked`: reset the linked remote project using resumable seeding; prompts for a port-5432 database URL and confirmation
 - `--db-url <url>`: target an explicit remote Postgres connection instead of the local database
 - `--yes`: skip the destructive remote-reset confirmation (non-interactive linked runs still require `SUPABASE_DB_URL` or `PGURI`)
-- `--resumable-seed`: reset with `--no-seed`, seed file-by-file through `psql`, then reapply deferred migrations; automatic with `--linked`
+- `--resumable-seed`: compatibility flag; all remote resets already reset with `--no-seed`, seed file-by-file through `psql`, then reapply deferred migrations
 - `--keep-triggers`: preserve triggers and FK enforcement during resumable seeding instead of using restore-style defaults
 
 `start` supports:
@@ -614,6 +616,4 @@ npm run test
 npm run pack:check
 ```
 
-RC gate checklist: `docs/rc-checklist.md`
-
-Package releases and docs deployments: [Publishing](docs/publishing.md).
+Package releases use a bot-managed release PR: merging it creates the tag and triggers checked npm publishing. Vercel deploys the docs independently. See the [Publishing runbook](docs/publishing.md) for setup, commands, and verification.

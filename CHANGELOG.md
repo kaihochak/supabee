@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Release Please generates versioned entries. Preserve the detailed notes below when
+reviewing the release PR, including migration requirements that generated summaries may omit.
+
+## [Unreleased]
+
+### Fixed
+- Remote seeding now passes connection settings through a temporary PostgreSQL service file instead of placing a full URL in `PGDATABASE`, which caused `psql` to attempt a local socket connection. Passwords stay out of command arguments; temporary connection files are removed after success or failure.
+- Data splitting preserves multiline SQL values containing semicolons, blank lines, and standard-conforming values ending in backslashes instead of truncating or corrupting seed rows.
+
+### Changed
+- The interactive linked-reset URL prompt now suggests a missing `/postgres` database or `sslmode=require` setting and asks `[Y/n]` before applying them. Existing settings and non-interactive URLs are preserved.
+
+### Breaking Changes
+- Remote resets using `--db-url` now use resumable file-by-file seeding automatically, matching `--linked`. Remote resets require `psql` and a Direct connection or Session pooler on port 5432. The existing `--resumable-seed` flag remains accepted for compatibility.
+
 ## [0.6.2] - 2026-09-04
 
 ### Fixed

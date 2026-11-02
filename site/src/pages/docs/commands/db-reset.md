@@ -20,7 +20,7 @@ supabee db reset
 supabee db reset 20260309180959
 ```
 
-For remote targets, `--linked` or `--db-url <url>` performs a destructive reset and requires confirmation; `--yes` skips that prompt. `--resumable-seed` loads configured seed files individually, and `--keep-triggers` preserves triggers and foreign-key checks during that load. Other options include `--env`, `--psql`, and `--strict-mixed`.
+For remote targets, `--linked` or `--db-url <url>` performs a destructive reset and requires confirmation; `--yes` skips that prompt. Both automatically load configured seed files individually with `psql`, allowing a failed load to be resumed. Use a direct or session-pooler URL on port `5432`. `--keep-triggers` preserves triggers and foreign-key checks during the load. Other options include `--env`, `--psql`, and `--strict-mixed`.
 
 | Option | Effect |
 | --- | --- |
@@ -28,7 +28,7 @@ For remote targets, `--linked` or `--db-url <url>` performs a destructive reset 
 | `--linked` | Target the linked remote project; prompts for its database URL and uses resumable seeding. |
 | `--db-url <url>` | Target a specific remote database instead of the local database. |
 | `--yes` | Skip the confirmation prompt for a remote destructive reset. |
-| `--resumable-seed` | For a remote target, reset without Supabase's seed step, then load each configured seed file with `psql`. |
+| `--resumable-seed` | Compatibility flag; all remote resets already use resumable seeding automatically. |
 | `--keep-triggers` | Keep triggers and FK checks active during resumable seeding; otherwise they are disabled like a restore. |
 | `--psql` | Apply deferred migrations with `psql` instead of `supabase migration up` (local target). |
 | `--strict-mixed` | Fail if any migration mixes schema and data changes. Without it, mixed files after cutoff require a split plan; older ones run as-is with a warning. |
@@ -38,3 +38,5 @@ For remote targets, `--linked` or `--db-url <url>` performs a destructive reset 
 Remote reset is destructive: it wipes the target's `public` schema. Confirm the URL and cutoff before proceeding. If resumable seeding fails, the command reports a `supabee db seed-remote --from ...` resume command.
 
 Read the [database lifecycle workflow](/docs/database-lifecycle/#reset-a-local-database) before using remote-reset options. Remote reset wipes the target database's `public` schema.
+
+When entering a URL at the `--linked` prompt, Supabee suggests `/postgres` and `sslmode=require` for missing database or SSL settings. Press Enter or `Y` to accept, or `n` to use the original URL. Existing settings are preserved; the password is not displayed. URLs passed with `--db-url` or environment variables are used as provided.

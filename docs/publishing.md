@@ -1,90 +1,128 @@
 # Publishing
 
-The CLI package and the docs website have independent release paths.
+**Merging the Release Please release PR approves npm publication.** Contributor and maintainer steps are manual; bot, CI, and publishing steps run automatically in GitHub Actions. Vercel deploys the website separately.
 
-| Output | Trigger | Validation | Delivery |
-| --- | --- | --- | --- |
-| npm package | Push a stable version tag such as `v0.6.3` | Release metadata, package CI on Node 20/22/24, clean tarball install | GitHub Actions publishes the tested tarball to npm |
-| Docs website | Merge site changes into `prod` | Docs workflow builds the site and checks typography | Vercel Git integration for `supabee.jacobchak.com` |
+## Maintainer setup
 
-Website changes do not require a CLI version bump. The site is a private package and is never published to npm. GitHub Actions validates the docs build; Vercel handles website deployments through its Git integration.
+- **GitHub:** add the repository Actions secret `RELEASE_PLEASE_TOKEN`. Its value is a fine-grained GitHub personal access token restricted to `kaihochak/supabee`, with **Contents** and **Pull requests** read/write permissions. It lets Release Please create PRs, tags, and GitHub releases. Replace it when it expires. A separate token enables CI on bot-created PRs; see [Release Please token guidance](https://github.com/googleapis/release-please-action#other-actions-on-release-please-prs).
+- **npm:** in the `supabee` package settings, add a GitHub Actions trusted publisher: owner `kaihochak`, repository `supabee`, workflow `publish.yml`, environment blank, direct `npm publish` allowed. Existing matching settings can be retained. Publishing uses OIDC; no npm token is needed. See [npm setup requirements](https://docs.npmjs.com/trusted-publishers/).
 
-## One-time npm setup
+## Full release sequence
 
-After merging `.github/workflows/publish.yml`, open the `supabee` package's settings on npm and add a GitHub Actions trusted publisher:
+| Step | Owner | What happens / where to check |
+| --- | --- | --- |
+| 1. Prepare | **Contributor** | Implement the change, update docs, and perform relevant [database integration checks](manual-test-plan-data-mutation-migrations.md) against a disposable database. |
+| 2. Stage and commit | **Contributor** | Review and save the intended files using the commands below. |
+| 3. Push / merge | **Maintainer** | Merge the reviewed contribution into `prod`, or push an approved change directly. |
+| 4. Check changes | **CI** | [ci.yml](../.github/workflows/ci.yml): install, typecheck, build, tests, and packaging dry run on Node 20/22/24. [docs.yml](../.github/workflows/docs.yml): site install, typography check, and Astro build when its path filters match. |
+| 5. Prepare release PR | **Bot** | Release Please updates the root package version, lockfile, manifest, and changelog in a PR. More changes can accumulate before release. |
+| 6. Approve release | **Maintainer** | Review version, release notes, migration guidance, and passing checks; then merge the release PR. Preserve detailed handwritten changelog notes. |
+| 7. Tag release | **Bot** | [publish.yml](../.github/workflows/publish.yml) → `release`: creates `vX.Y.Z` and the GitHub release. |
+| 8. Validate and test | **CI** | `validate`: checks stable tag, public package, matching versions, repository URL, dated changelog, and exact tagged commit on `prod`. `checks`: reruns package CI on that exact SHA. |
+| 9. Pack | **CI** | `publish` → **Build and pack release**: Node 24/npm 11, dependency install, then `npm pack`; `prepack` builds TypeScript. |
+| 10. Test installation | **CI** | `publish` → **Smoke test the packed CLI in a clean directory**: installs the tarball outside the repo and checks help, exact version, and the legacy alias. |
+| 11. Publish | **Publish job** | **Publish the tested tarball to npm**: publishes that same archive with provenance after all release checks pass. |
+| 12. Verify | **Maintainer** | Confirm workflow success, npm version, and applicable [post-publish checks](manual-test-plan-data-mutation-migrations.md#phase-7-post-publish-validation-with-latest). |
 
-| Setting | Value |
+Steps 4 and 5 start independently after a normal `prod` push. CI also runs on the release PR. Steps 7–11 run after the release PR is merged, within the same workflow. A GitHub tag/release can exist before npm publication succeeds.
+
+### Choose the version through the commit message
+
+| Commit prefix | Effect |
 | --- | --- |
-| Organization or user | `kaihochak` |
-| Repository | `supabee` |
-| Workflow filename | `publish.yml` |
-| Environment | Leave blank; the workflow does not use a GitHub environment |
-| Allowed action | Enable direct publishing with `npm publish` |
+| `fix:` | Patch: 0.7.0 → 0.7.1 |
+| `feat:` | Minor: 0.7.0 → 0.8.0 |
+| `feat!:` / `fix!:` | Breaking: minor below 1.0; major from 1.0 onward |
+| `docs:` / `chore:` | No release on their own |
 
-This workflow uses OIDC and does not require an `NPM_TOKEN` repository secret. Its publishing job grants `id-token: write` and runs Node 24 with npm 11. The `repository.url` in `package.json` must match the GitHub repository. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) for current setup requirements.
+Include migration requirements in a `BREAKING CHANGE:` commit-body paragraph. For squash merges, use the appropriate PR title/body. Commits affecting only `site/` or `docs/` are excluded from CLI version calculation; the private site package is not released to npm.
 
-Configure the publisher when ready to release: npm currently requires a new configuration's first successful publication within two days. Recreate an expired configuration before retrying.
+### Manual commands: stage, commit, push
 
-## Release the CLI
+From the repository root:
 
-1. Finish the [RC checklist](rc-checklist.md), including testing with a real Supabase dump and the integration workflow when relevant. Automated CI does not replace those manual checks.
-2. Update the package version and lockfile without creating a tag yet:
+```sh
+git status --short
+git diff
+git add -p
+```
 
-   ```sh
-   npm version patch --no-git-tag-version
-   ```
+Stage intended new files explicitly with `git add` or an editor's staging controls. Review the staged changes, then commit with a message describing the change. Example for a breaking remote-reset change:
 
-3. Add a dated entry to `CHANGELOG.md`, for example `## [0.6.3] - 2026-10-29`. Use the actual version and release date. Review and commit the release files, then merge them into `prod` through the usual review process.
-4. Wait for package CI on `prod` to pass. Tag the release commit and push that exact tag. For version `0.6.3`:
+```sh
+git diff --staged
+git commit -m "feat!: make remote resets resumable by default" -m "BREAKING CHANGE: Remote resets with --db-url now require psql and a Direct connection or Session pooler on port 5432."
+```
 
-   ```sh
-   git tag -a v0.6.3 RELEASE_COMMIT_SHA -m "Release 0.6.3"
-   git push origin v0.6.3
-   ```
+Press `q` to exit the diff viewer. Stop if committing fails. For an approved direct change on `prod`, push:
 
-   Replace `RELEASE_COMMIT_SHA` with the reviewed commit already on `prod`. Use a specific tag push rather than pushing every local tag.
+```sh
+git branch --show-current
+git push origin prod
+```
 
-5. Watch **Publish npm package** in GitHub Actions. The workflow:
-   - verifies a stable `vX.Y.Z` tag matches both package files and a dated changelog entry;
-   - verifies the release commit is already on `prod`;
-   - runs the same package checks as normal CI on Node 20, 22, and 24;
-   - builds a tarball, installs it in a clean directory, and checks both CLI entry points and the version;
-   - publishes that exact tarball publicly to npm with provenance.
-6. Confirm the registry version, then complete the [post-publish integration checks](manual-test-plan-data-mutation-migrations.md#phase-7-post-publish-validation-with-latest):
+For a feature branch, push that branch and have a maintainer merge the reviewed PR. Continue with Steps 4–12 above. Version updates, tag creation, and npm publication are automated.
 
-   ```sh
-   npm view supabee@0.6.3 version
-   npm view supabee dist-tags.latest
-   ```
+### Automatic command reference
 
-Only stable releases are supported by this workflow. Prerelease tags are rejected so an RC cannot replace npm's `latest` version.
+GitHub Actions runs these commands; repeating them locally is optional:
 
-## Docs website on Vercel
-
-The `Docs` workflow runs for `site/` changes, the typography checker, root package files, and its own workflow file. It installs dependencies using `site/package-lock.json` and builds `site/dist/` with Node 24. The package workflow skips changes confined to the site and internal docs.
-
-The website is hosted on Vercel as project `supabee`, under `kaichaks-projects`, at `https://supabee.jacobchak.com`. Its root directory is already `site` and its Node.js setting is `24.x`.
-
-`site/vercel.json` specifies the Astro framework, `npm ci` installation, `npm run build`, and the `dist` output directory. Paths in this file are relative to the Vercel project root (`site/`), so the deployed output corresponds to `site/dist/` in the repository.
-
-In the existing Vercel project's settings, confirm:
-
-| Setting | Value |
+| Location | Commands / checks |
 | --- | --- |
-| Git repository | `kaihochak/supabee` |
-| Production branch | `prod` |
-| Root Directory | `site` |
-| Node.js Version | `24.x` |
-| Production domain | `supabee.jacobchak.com` |
+| `ci.yml` → `checks` | `npm ci`, `npm run typecheck`, `npm run build`, `npm run test`, `npm run pack:check` |
+| `docs.yml` → `build` | `npm --prefix site ci`, `node scripts/check-typography.mjs`, `npm --prefix site run build` |
+| `publish.yml` → `validate` | `node scripts/check-release.mjs` with the release tag and fetched Git history |
+| `publish.yml` → `publish` | `npm ci`, `npm pack --pack-destination "$RUNNER_TEMP"`, clean installation check, then `npm publish "$TARBALL" --access public --provenance` |
 
-Keep Vercel's Git integration for automatic production deployments and branch previews. No Vercel deployment token or second deployment job is needed in GitHub Actions. Vercel builds its own deployment; the GitHub docs check alone does not gate it. Review the docs check and Vercel preview before merging site changes into `prod`.
+`pack:check` is a dry run. The publish job creates and tests the actual tarball. Its installation check is shown below for reference; the workflow supplies `TARBALL` and `EXPECTED_VERSION`:
 
-The CLI and website use separate package manifests and lockfiles rather than npm workspaces. Vercel may therefore rebuild the website for CLI-only commits; its automatic workspace-based skipping is not assumed here. If reducing those builds becomes necessary, configure a Vercel Ignored Build Step after verifying the project's Git history and deployment comparison behavior. See [Vercel monorepo deployment settings](https://vercel.com/docs/monorepos).
+```sh
+smoke_dir="$(mktemp -d)"
+npm install --prefix "$smoke_dir" --ignore-scripts --no-audit --no-fund "$TARBALL"
+"$smoke_dir/node_modules/.bin/supabee" --help
+test "$("$smoke_dir/node_modules/.bin/supabee" --version)" = "$EXPECTED_VERSION"
+"$smoke_dir/node_modules/.bin/supabase-splitter" --help
+```
 
-Publish CLI behavior before merging docs that require that new version. Documentation corrections can ship independently. The site package's version is not tied to the CLI's version.
+Local checks remain useful for development or debugging. CI's installation check does not exercise a full database reset; applicable database integration tests remain manual.
 
-## Failed releases
+### Verify npm publication
 
-- A failed check prevents the publishing job from running. Correct the release commit/version metadata and use a new tag for the corrected release; do not move a published release tag.
-- If authentication fails, check the trusted publisher's repository, workflow filename, allowed action, and expiry. Do not add a local npm token to the workflow.
-- Before retrying a run, check whether npm already contains the version. Published versions cannot be overwritten; release another version if its contents need to change.
+After **Release and publish npm package** succeeds in [GitHub Actions](https://github.com/kaihochak/supabee/actions), check:
+
+```sh
+npm view supabee@0.7.0 version
+npm view supabee dist-tags.latest
+```
+
+Both should report `0.7.0` for the first release. Substitute the released version thereafter.
+
+## First rollout: 0.7.0
+
+The manifest starts at published `0.6.2`; the bot should propose `0.7.0`. Package metadata stays at `0.6.2` until its release PR applies the bump. During that PR's review, move **all** [Unreleased changelog notes](../CHANGELOG.md#unreleased) into the generated 0.7.0 entry, retaining every fix and migration requirement; remove the empty Unreleased section. CI builds its own archive, so the earlier local tarball is not used.
+
+Include the automation edits and new configuration files when adopting this workflow:
+
+```sh
+git add .github/workflows/ci.yml .github/workflows/publish.yml \
+  release-please-config.json .release-please-manifest.json \
+  scripts/check-release.mjs tests/release.test.mjs \
+  package.json package-lock.json CHANGELOG.md README.md \
+  docs/publishing.md docs/prd/remote-seed-resume-prd.md
+git diff --staged
+```
+
+## Website deployment
+
+**Maintainer:** review site changes and Vercel previews. **Docs CI:** validates matching changes. **Vercel:** independently builds previews and deploys `prod` to [supabee.jacobchak.com](https://supabee.jacobchak.com). **Maintainer:** verify the deployment and expected content.
+
+Vercel project `supabee` in `kaichaks-projects` uses repository `kaihochak/supabee`, production branch `prod`, root `site`, and Node `24.x`. [site/vercel.json](../site/vercel.json) sets Astro, `npm ci`, `npm run build`, and output `dist`.
+
+Vercel does not wait for Docs CI or npm publication and may redeploy on CLI-only commits. Website changes need no npm release. Coordinate docs requiring a new CLI version with that version's availability.
+
+## If something fails
+
+- **Bot:** check `RELEASE_PLEASE_TOKEN` permissions/expiry and rerun the failed job.
+- **Checks or code:** npm publication stops. Fix the code and prepare another release PR; do not move a published tag.
+- **Publishing authentication/infrastructure:** check whether the version exists on npm first. If absent, fix configuration and choose **Re-run failed jobs** on the original run. Alternatively, select **Release and publish npm package → Run workflow**, branch `prod`, and enter the existing tag, such as `v0.7.0`. This rechecks and publishes that tagged commit. Leave the tag blank only to update the release PR.
+- **Already published:** npm versions cannot be overwritten. Verify the existing publication or release a new version for changed contents.

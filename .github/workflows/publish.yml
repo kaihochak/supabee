@@ -1,29 +1,70 @@
-name: Publish npm package
+name: Release and publish npm package
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - prod
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to retry publishing (leave blank to update the release PR)
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: npm-release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
   HUSKY: '0'
 
 jobs:
+  release:
+    if: github.repository == 'kaihochak/supabee' && github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag_name || inputs.tag }}
+      ref: ${{ steps.release.outputs.sha || (inputs.tag && format('refs/tags/{0}', inputs.tag)) }}
+    steps:
+      - name: Check release bot configuration
+        if: inputs.tag == ''
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_PLEASE_TOKEN" ]; then
+            echo '::error::Add the RELEASE_PLEASE_TOKEN repository secret. See docs/publishing.md.'
+            exit 1
+          fi
+
+      - name: Prepare a release PR or release a merged PR
+        if: inputs.tag == ''
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          target-branch: prod
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   validate:
+    needs: release
+    if: needs.release.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.release.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -35,12 +76,14 @@ jobs:
       - name: Validate release tag, metadata, and prod ancestry
         id: release
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
         run: node scripts/check-release.mjs
 
   checks:
     needs: validate
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.validate.outputs.sha }}
 
   publish:
     needs: [validate, checks]
@@ -52,6 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.validate.outputs.sha }}
           persist-credentials: false
 
       - uses: actions/setup-node@v7

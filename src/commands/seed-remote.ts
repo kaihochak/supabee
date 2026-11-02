@@ -1,6 +1,7 @@
 import { runCommand } from '../lib/subprocess.js';
 import { sectionWithNote, title, info, ok, fail, warn } from '../lib/ui.js';
 import { discoverSeedFiles, type SeedFile } from '../lib/seed-files.js';
+import { withPsqlConnection } from '../lib/psql-connection.js';
 
 export type SeedRemoteOptions = {
   dbUrl?: string;
@@ -95,30 +96,32 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     return;
   }
 
-  for (let i = 0; i < queue.length; i += 1) {
-    const file = queue[i];
-    console.log(info(`[${i + 1}/${queue.length}] Seeding ${file.relPath}...`));
-    try {
-      await runCommand('psql', [
-        '-X',
-        '--single-transaction',
-        '-v',
-        'ON_ERROR_STOP=1',
-        '-c',
-        sessionSetupSql,
-        '-f',
-        file.absPath,
-      ], {
-        env: { PGDATABASE: dbUrl },
-        sensitiveValues: [dbUrl],
-      });
-    } catch (error) {
-      console.log('');
-      console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));
-      printResumeHint(file, options.keepTriggers === true);
-      throw new Error(`Remote seeding failed at ${file.relPath}.`);
+  await withPsqlConnection(dbUrl, async (env) => {
+    for (let i = 0; i < queue.length; i += 1) {
+      const file = queue[i];
+      console.log(info(`[${i + 1}/${queue.length}] Seeding ${file.relPath}...`));
+      try {
+        await runCommand('psql', [
+          '-X',
+          '--single-transaction',
+          '-v',
+          'ON_ERROR_STOP=1',
+          '-c',
+          sessionSetupSql,
+          '-f',
+          file.absPath,
+        ], {
+          env,
+          sensitiveValues: [dbUrl],
+        });
+      } catch (error) {
+        console.log('');
+        console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));
+        printResumeHint(file, options.keepTriggers === true);
+        throw new Error(`Remote seeding failed at ${file.relPath}.`);
+      }
     }
-  }
+  });
 
   console.log('');
   console.log(ok(`Seeded ${queue.length} file(s) successfully.`));

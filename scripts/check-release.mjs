@@ -21,7 +21,12 @@ export function validateReleaseMetadata({ tag, repository, pkg, lock, changelog 
   if (!repository || repoUrl !== `https://github.com/${repository}`) {
     throw new Error('package.json repository.url must match the publishing GitHub repository.');
   }
-  const heading = new RegExp(`^## \\[${version.replaceAll('.', '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}\\r?$`, 'm');
+  const escapedVersion = version.replaceAll('.', '\\.');
+  const heading = new RegExp(
+    `^(?:## \\[${escapedVersion}\\] - \\d{4}-\\d{2}-\\d{2}|` +
+    `#{2,3} (?:${escapedVersion}|\\[${escapedVersion}\\](?:\\(https://[^\\s)]+\\))?) \\(\\d{4}-\\d{2}-\\d{2}\\))\\r?$`,
+    'm',
+  );
   if (!heading.test(changelog)) {
     throw new Error(`CHANGELOG.md must contain a dated release entry for ${version}.`);
   }
@@ -40,9 +45,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     try {
       execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/prod'], { stdio: 'pipe' });
     } catch {
-      throw new Error('Release commit must already be on origin/prod. Push prod before the version tag.');
+      throw new Error('Release commit must already be on origin/prod. Merge the release PR before publishing.');
     }
-    if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+    const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+    const taggedSha = execFileSync('git', ['rev-parse', `refs/tags/${process.env.RELEASE_TAG}^{commit}`], { encoding: 'utf8' }).trim();
+    if (sha !== taggedSha) throw new Error('The checked-out commit must match the release tag.');
+    if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nsha=${sha}\n`);
     console.log(`Validated supabee ${version} for publishing from ${process.env.GITHUB_REPOSITORY}.`);
   } catch (error) {
     console.error(error.message);

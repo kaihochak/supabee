@@ -1,6 +1,6 @@
 # Remote Seed Resume PRD
 
-> **Status: implemented.** Shipped as `supabee db seed-remote`, `supabee db reset --resumable-seed`, and the default remote workflow for `supabee db reset --linked`. This document reflects the as-built design; where it differs from the original MVP proposal, the change is noted inline.
+> **Status: implemented, pending release.** The connection-handling fix, URL-default suggestions, and automatic resumable seeding for `--db-url` are implemented locally. The original `--resumable-seed` flag remains accepted for compatibility. This document reflects the as-built design.
 
 ## Overview
 Provide a reliable remote seeding workflow for Supabase projects where `supabase db reset` seeding can time out on large datasets. The feature adds a resumable direct-`psql` seeding path and orchestrates it with the existing post-seed migration logic.
@@ -41,8 +41,8 @@ So the resumable path **separates the two**:
    `--keep-triggers` opts out and leaves triggers/FK checks live. Requires a role permitted to set `session_replication_role` (Supabase's `postgres` role normally is).
 5. On failure, prints a credential-free `--from` resume command using a visible `YOUR_DATABASE_URL` placeholder.
 
-### `supabee db reset --resumable-seed` / `--linked` (orchestrated path)
-An explicit target uses `--db-url <url> --resumable-seed`. A linked target enables resumable seeding automatically and obtains a port-5432 URL from `SUPABASE_DB_URL` / `PGURI`, or a hidden interactive prompt. The prompt directs IPv6 users to Direct connection and IPv4 users to Session pooler. Flow:
+### `supabee db reset --db-url` / `--linked` (orchestrated path)
+All remote targets enable resumable seeding automatically. An explicit target supplies `--db-url <url>`; a linked target obtains a port-5432 URL from `SUPABASE_DB_URL` / `PGURI`, or a hidden interactive prompt. Explicit URLs are also validated before any database access. The prompt directs IPv6 users to Direct connection and IPv4 users to Session pooler. Flow:
 1. Reuse existing cutoff resolution + defer/restore migration behavior.
 2. Run `supabase db reset --db-url <url> --no-seed --yes`.
 3. Run the `seed-remote` step.
@@ -51,7 +51,7 @@ An explicit target uses `--db-url <url> --resumable-seed`. A linked target enabl
 
 ## CLI Interface
 1. `supabee db seed-remote [--db-url <url>] [--from <file>] [--dry-run]`
-2. `supabee db reset [cutoffTimestamp] --db-url <url> --resumable-seed [--yes]`
+2. `supabee db reset [cutoffTimestamp] --db-url <url> [--yes]`
 3. `supabee db reset [cutoffTimestamp] --linked [--yes]`
 
 Notes:
@@ -60,17 +60,21 @@ Notes:
 - Use Direct connection (IPv6) or Session pooler (IPv4), both on port 5432. Transaction pooler on port 6543 is unsupported.
 - Existing local `db reset` behavior is unchanged by default.
 
-## One-off vs resumable trade-off
-`db reset --linked` always uses the resumable path. The plain `db reset --db-url` path remains available for **smaller datasets** unless `--resumable-seed` is added. If a one-off seed times out, the database may be left unhealthy and the operator must reset the project / follow Supabase's recovery guidance. The resumable path does not attempt to rescue an already-broken one-off run.
+## Remote seeding default
+Both `db reset --linked` and `db reset --db-url` always use the resumable path, including for smaller datasets. The original opt-in for explicit URLs has been removed; existing scripts with `--resumable-seed` continue to work. Local resets retain the standard Supabase seed step. The resumable path does not attempt to rescue an already-broken reset; it can resume files loaded through the resumable workflow.
 
 ## Acceptance Criteria (met)
-1. Linked resets and explicit remote resets using `--resumable-seed` no longer depend on the Supabase seed timeout path.
+1. All remote resets use resumable seeding without requiring `--resumable-seed` and no longer depend on the Supabase seed timeout path.
 2. A failed seed file resumes with `--from` and completes without manual file edits or duplicate rows.
 3. Post-cutoff migration sequence remains: defer → reset (no-seed) → seed → reapply.
 4. Existing non-remote `db reset` workflows remain backward-compatible.
 
 ## Validation
-Verified end-to-end against a disposable Postgres (Docker) for both commands:
+Real-client regression coverage runs installed `psql` against a deliberately unavailable loopback endpoint to confirm it uses the supplied TCP host/port rather than a default Unix socket. Connection settings use a temporary private PostgreSQL service file; URI passwords use `PGPASSWORD` rather than process arguments. The service file is removed on success and failure. This does not test a live Supabase data load.
+
+Automated regression tests use isolated `supabase` and `psql` stubs to verify default remote orchestration, failure/resume, migration restoration, legacy flag compatibility, local behavior, URL validation, and confirmation. These tests do not access a database.
+
+Historical end-to-end validation against a disposable Postgres (Docker), before the explicit-URL default changed, covered both commands:
 - ordered queue (`--dry-run`), full seed, and `--from` resume;
 - **atomic rollback**: a file failing mid-way leaves none of its rows committed (schema stays healthy);
 - full orchestration: `db reset --db-url --resumable-seed` runs no-seed reset → split-seed via psql → post-cutoff migration, in the correct order;
@@ -78,6 +82,9 @@ Verified end-to-end against a disposable Postgres (Docker) for both commands:
 - linked URL input is hidden, malformed/non-5432 URLs are rejected, and cancellation occurs before database access.
 
 ## Known follow-ups
+- [x] Fix the full-URI `PGDATABASE` regression using native PostgreSQL connection settings, preserving URI options and credential privacy. Verify the actual `psql` client targets the supplied host and port, plus cleanup and seed/resume behavior.
+- [x] Offer missing database and SSL defaults at the interactive URL prompt with `[Y/n]` confirmation. Preserve explicit settings and declined input without printing credentials; leave flag/environment URLs unchanged.
+- [x] Verify the automatic explicit-URL remote reset path, legacy flag compatibility, linked and local behavior, seed failure/resume, and invalid URL rejection with isolated command stubs.
 - [x] Detect the latest common cutoff from backtick-wrapped migration-list cells while retaining plain ASCII/Unicode support and rejecting malformed versions.
 - [x] Preserve U+2028/U+2029 in generated seeds using LF-only streamed line reading; keep parsing and reconstruction streamed to avoid whole-dump string-size limits. Verify exact JSON preservation through split/reconstruct, LF/CRLF inputs, chunk boundaries, and read errors.
 - [x] Preserve multiline INSERT values containing semicolons and blank lines; distinguish quoted data from SQL commands and sequence statements. Verify LF/CRLF inputs, quote escapes, dollar quotes, comments, row chunking, and standard-conforming values ending in backslashes.

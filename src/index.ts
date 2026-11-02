@@ -313,10 +313,10 @@ dbCommand
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
   .option('--linked', 'Reset the linked project with resumable direct-psql seeding (prompts for confirmation and DB URL)')
-  .option('--db-url <url>', 'Reset the database at this Postgres connection string instead of local (destructive; prompts for confirmation)')
+  .option('--db-url <url>', 'Reset this remote database with resumable seeding (port 5432; prompts for confirmation)')
   .option('--yes', 'Skip the remote-reset confirmation prompt (for CI / non-interactive runs)')
-  .option('--resumable-seed', 'Use no-seed reset + resumable direct-psql seeding (automatic with --linked; otherwise requires --db-url)')
-  .option('--keep-triggers', 'With --resumable-seed, keep triggers/FK checks active during seeding (default: disabled)')
+  .option('--resumable-seed', 'Compatibility flag: resumable seeding is automatic for all remote resets')
+  .option('--keep-triggers', 'Keep triggers/FK checks active during remote seeding (default: disabled)')
   .addHelpText(
     'after',
     `
@@ -333,9 +333,9 @@ local seed files. They prompt for confirmation; pass --yes to skip that prompt.
 URL: Direct connection for IPv6 or Session pooler for IPv4. Never use port 6543.
 Set SUPABASE_DB_URL or PGURI to avoid the URL prompt (CI).
 
-Large remote datasets: the Supabase seed path can time out and leave the database
-unhealthy. --linked avoids that path automatically. For an explicit --db-url,
-add --resumable-seed to load data file-by-file via direct psql and resume with
+Both --linked and --db-url reset without Supabase's seed step, then load data
+file-by-file via psql. Use a Direct connection or Session pooler on port 5432.
+If seeding fails, resume with
 \`supabee db seed-remote --from <file>\` instead of starting over.
 
 Examples
@@ -344,7 +344,7 @@ Examples
   supabee db reset 20260309180959 --psql
   supabee db reset --linked
   supabee db reset 20260309180959 --linked --yes
-  supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --resumable-seed --yes
+  supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --yes
 `,
   )
   .action(

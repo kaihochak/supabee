@@ -10,6 +10,7 @@ import { classifyMigrations } from '../lib/migration-classifier.js';
 import { applyMixedSplitPlan, buildMixedSplitPlan, type MixedSplitPlan } from '../lib/mixed-migration-splitter.js';
 import { renderResetSummary, type ClassifiedMigrationLite } from '../lib/reset-summary.js';
 import { runSeedRemoteCommand } from './seed-remote.js';
+import { confirmDbUrlDefaults } from '../lib/db-url-defaults.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
@@ -28,7 +29,10 @@ type RemoteTarget = { args: string[]; label: string; isDbUrl: boolean };
 
 function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions): RemoteTarget | null {
   const linked = options.linked === true;
-  const dbUrl = options.dbUrl;
+  const dbUrl = options.dbUrl?.trim();
+  if (options.dbUrl !== undefined && !dbUrl) {
+    throw new Error('--db-url requires a non-empty Postgres connection string.');
+  }
   if (!linked && !dbUrl) return null;
 
   if (mode !== 'reset') {
@@ -42,7 +46,7 @@ function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions
   }
 
   return dbUrl
-    ? { args: ['--db-url', dbUrl, '--yes'], label: 'remote (--db-url)', isDbUrl: true }
+    ? { args: ['--db-url', validateRemoteDbUrl(dbUrl), '--yes'], label: 'remote (--db-url)', isDbUrl: true }
     : { args: ['--linked', '--yes'], label: 'linked remote project', isDbUrl: false };
 }
 
@@ -103,7 +107,13 @@ async function resolveLinkedDbUrl(): Promise<string> {
   console.log(info('Input is hidden.'));
   const dbUrl = (await promptForSecret('Database URL: ')).trim();
   if (!dbUrl) throw new Error('Database URL is required for a linked remote reset.');
-  return validateRemoteDbUrl(dbUrl);
+  validateRemoteDbUrl(dbUrl);
+  const rl = readline.createInterface({ input, output });
+  try {
+    return await confirmDbUrlDefaults(dbUrl, (question) => rl.question(question));
+  } finally {
+    rl.close();
+  }
 }
 
 async function confirmRemoteReset(target: RemoteTarget, options: PostSeedCommandOptions): Promise<boolean> {
@@ -244,7 +254,7 @@ async function runPostSeedCommand(
   let remoteTarget = resolveRemoteTarget(mode, options);
   const linkedTarget = options.linked === true;
   let effectiveDbUrl = options.dbUrl?.trim();
-  let resumableSeed = options.resumableSeed === true;
+  const resumableSeed = remoteTarget !== null || options.resumableSeed === true;
 
   if (resumableSeed && !remoteTarget) {
     throw new Error('--resumable-seed requires a remote target (--linked or --db-url).');
@@ -257,7 +267,6 @@ async function runPostSeedCommand(
       label: `linked remote project at ${new URL(effectiveDbUrl).hostname} (resumable seed)`,
       isDbUrl: true,
     };
-    resumableSeed = true;
   }
 
   if (resumableSeed && !effectiveDbUrl) {

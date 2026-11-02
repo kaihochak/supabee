@@ -51,11 +51,10 @@ For an explicit connection string:
 ```bash
 supabee db reset \
   --db-url "postgresql://...:5432/postgres?sslmode=require" \
-  --resumable-seed \
   --yes
 ```
 
-Use a direct connection or session pooler on port `5432`. Transaction pooler connections on port `6543` are not supported by this workflow.
+Both remote commands use resumable seeding automatically and require `psql`. Use a direct connection or session pooler on port `5432`. Transaction pooler connections on port `6543` are not supported by this workflow.
 
 ## Resume a large seed
 

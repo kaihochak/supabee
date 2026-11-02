@@ -21,6 +21,28 @@ test('accepts a stable release with matching package, lockfile, repository, and 
   assert.equal(validateReleaseMetadata(release()), '0.6.3');
 });
 
+for (const heading of [
+  '## [0.6.3](https://github.com/kaihochak/supabee/compare/v0.6.2...v0.6.3) (2026-11-01)',
+  '### [0.6.3](https://github.com/kaihochak/supabee/compare/v0.6.2...v0.6.3) (2026-11-01)',
+  '## 0.6.3 (2026-11-01)',
+  '## [0.6.3] (2026-11-01)\r',
+]) {
+  test(`accepts Release Please changelog heading: ${heading.trim()}`, () => {
+    assert.equal(validateReleaseMetadata({ ...release(), changelog: `# Changelog\n\n${heading}\n` }), '0.6.3');
+  });
+}
+
+for (const heading of [
+  '## [0.6.30](https://github.com/kaihochak/supabee/compare/v0.6.2...v0.6.30) (2026-11-01)',
+  '## [0.6.3](https://example.test/2026-11-01)',
+  '## 0.6.3',
+  '## [0.6.3] - not-a-date',
+]) {
+  test(`rejects an undated or different-version changelog heading: ${heading}`, () => {
+    assert.throws(() => validateReleaseMetadata({ ...release(), changelog: heading }), /dated release entry/);
+  });
+}
+
 for (const tag of [undefined, '0.6.3', 'v01.6.3', 'v0.6.3-rc.1', 'v0.6.3+build', 'v0.6.3/other']) {
   test(`rejects unsupported release tag ${tag}`, () => {
     assert.throws(() => validateReleaseMetadata({ ...release(), tag }), /stable versions/);
@@ -57,6 +79,7 @@ function releaseRepository(t) {
   git('-c', 'init.templateDir=', 'init', '--initial-branch=prod');
   git('add', 'package.json', 'package-lock.json', 'CHANGELOG.md');
   git('commit', '-m', 'Release metadata');
+  git('tag', metadata.tag);
   git('update-ref', 'refs/remotes/origin/prod', 'HEAD');
   const outputFile = path.join(dir, 'github-output');
   const run = () => spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/check-release.mjs', import.meta.url))], {
@@ -71,7 +94,7 @@ test('release CLI validates prod ancestry and writes the version for GitHub Acti
   const { run, outputFile } = releaseRepository(t);
   const result = run();
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(fs.readFileSync(outputFile, 'utf8'), 'version=0.6.3\n');
+  assert.match(fs.readFileSync(outputFile, 'utf8'), /^version=0\.6\.3\nsha=[0-9a-f]{40}\n$/);
 });
 
 test('release CLI rejects a commit that has not reached prod', (t) => {
@@ -90,4 +113,14 @@ test('release CLI rejects a checkout without a fetched prod ref', (t) => {
   const result = run();
   assert.equal(result.status, 1);
   assert.match(result.stderr, /must already be on origin\/prod/);
+});
+
+test('release CLI rejects a different commit from the release tag even when both are on prod', (t) => {
+  const { git, run, outputFile } = releaseRepository(t);
+  git('commit', '--allow-empty', '-m', 'Later prod commit');
+  git('update-ref', 'refs/remotes/origin/prod', 'HEAD');
+  const result = run();
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /must match the release tag/);
+  assert.equal(fs.existsSync(outputFile), false);
 });

@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release Please generates versioned entries. Preserve the detailed notes below when
 reviewing the release PR, including migration requirements that generated summaries may omit.
 
+## [0.7.0](https://github.com/kaihochak/supabee/compare/v0.6.2...v0.7.0) (2026-11-02)
+
+
+### Features
+
+* **docs:** add public pages and site metadata ([ce89bbd](https://github.com/kaihochak/supabee/commit/ce89bbdd238bcd87d851dd1f311f227b8808f210))
+* enhance documentation and command functionality with --no-sync option for local processing ([2a0da1d](https://github.com/kaihochak/supabee/commit/2a0da1debf01011c2fb65d00291229a0e408db52))
+
+
+### Bug Fixes
+
+* preserve multiline SQL values when splitting seeds ([6a704c7](https://github.com/kaihochak/supabee/commit/6a704c757d7bd9fb254230f45a27ed964d37b3a6))
+* update .gitignore to include site directories and add new npm scripts for documentation ([c5e7204](https://github.com/kaihochak/supabee/commit/c5e72042ba14f20f82698d0888f6fc719623589f))
+
 ## [Unreleased]
 
 ### Fixed

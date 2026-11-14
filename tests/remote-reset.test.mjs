@@ -34,6 +34,9 @@ const file = args.includes('-f') ? path.basename(args[args.indexOf('-f') + 1]) :
 const serviceFile = command === 'psql' ? process.env.PGSERVICEFILE : null;
 const connection = serviceFile ? fs.readFileSync(serviceFile, 'utf8') : null;
 fs.appendFileSync(process.env.RESET_TEST_LOG, JSON.stringify({ command, args, file, serviceFile, connection, password: command === 'psql' ? process.env.PGPASSWORD : null }) + '\\n');
+if (command === 'supabase' && args[0] === 'migration' && args[1] === 'list') {
+  console.log('20260101000000 | 20260101000000 | 2026-01-01');
+}
 if (command === 'psql' && file === process.env.RESET_TEST_FAIL_FILE) {
   console.error('fixture seed failed');
   process.exit(1);
@@ -48,6 +51,7 @@ if (command === 'psql' && file === process.env.RESET_TEST_FAIL_FILE) {
       PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`,
       SUPABEE_NO_GLOBAL_HINT: '1',
       SUPABASE_DB_URL: '',
+      SUPABASE_PROJECT_ID: '',
       PGURI: '',
       RESET_TEST_LOG: log,
       RESET_TEST_FAIL_FILE: '',
@@ -123,4 +127,20 @@ test('remote URL validation and confirmation stop before database commands', pla
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /without confirmation/);
   assert.deepEqual(f.calls(), []);
+});
+
+test('plain reset remains local even when remote environment settings exist', platformOptions, (t) => {
+  const f = fixture(t);
+  const result = f.run(['db', 'reset'], {
+    SUPABASE_PROJECT_ID: 'aaaaaaaaaaaaaaaaaaaa',
+    SUPABASE_DB_URL: dbUrl,
+    PGURI: dbUrl,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /Target: local database/);
+  assert.deepEqual(f.calls().map((call) => call.args), [
+    ['migration', 'list', '--linked'],
+    ['db', 'reset'],
+    ['migration', 'up'],
+  ]);
 });

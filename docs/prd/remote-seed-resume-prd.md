@@ -93,6 +93,7 @@ Historical end-to-end validation against a disposable Postgres (Docker), before 
 
 ## Project target resolution tasks
 
+- [x] Keep plain `supabee db reset` local and print its target explicitly. Verify that remote project/URL environment settings do not retarget reset or migration replay; preserve seed-snapshot cutoff detection.
 - [x] Implement reusable linked-project identity lookup: `SUPABASE_PROJECT_ID` → saved `supabase/.temp/project-ref` → interactive Supabase project picker; fail in noninteractive mode without a selection. Return the validated project reference and its source. Preserve the saved link when environment selection wins; stop on invalid references, unreadable files, and cancelled pickers.
 - [x] Verify lookup precedence, whitespace handling, invalid references, missing selections, picker persistence/cancellation, and the `supabase link` subprocess working directory with isolated tests. Document identity-only behavior and picker persistence requirements without contacting a live project.
 - [ ] Integrate the lookup into the complete reset target workflow and verify target consistency across cutoff detection, reset, and migration replay.

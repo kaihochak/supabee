@@ -279,6 +279,8 @@ async function runPostSeedCommand(
       console.log(info('Aborted. No changes made.'));
       return;
     }
+  } else if (mode === 'reset') {
+    console.log(info('Target: local database'));
   }
 
   const resolvedCutoff = await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env });

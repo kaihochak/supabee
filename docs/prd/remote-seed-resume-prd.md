@@ -90,3 +90,10 @@ Historical end-to-end validation against a disposable Postgres (Docker), before 
 - [x] Preserve multiline INSERT values containing semicolons and blank lines; distinguish quoted data from SQL commands and sequence statements. Verify LF/CRLF inputs, quote escapes, dollar quotes, comments, row chunking, and standard-conforming values ending in backslashes.
 - [x] Redact connection strings in subprocess error output and keep direct `psql` connection URLs out of process arguments.
 - `--strict` / non-strict modes from the original MVP were not needed: seeding always stops on the first failing file (the only safe default for a resumable workflow).
+
+## Project target resolution tasks
+
+- [x] Implement reusable linked-project identity lookup: `SUPABASE_PROJECT_ID` → saved `supabase/.temp/project-ref` → interactive Supabase project picker; fail in noninteractive mode without a selection. Return the validated project reference and its source. Preserve the saved link when environment selection wins; stop on invalid references, unreadable files, and cancelled pickers.
+- [x] Verify lookup precedence, whitespace handling, invalid references, missing selections, picker persistence/cancellation, and the `supabase link` subprocess working directory with isolated tests. Document identity-only behavior and picker persistence requirements without contacting a live project.
+- [ ] Integrate the lookup into the complete reset target workflow and verify target consistency across cutoff detection, reset, and migration replay.
+- [ ] Integrate automatic project-based seed connections, credential expiry handling, and access-token authentication; validate permissions and trigger handling on a disposable project.

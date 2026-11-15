@@ -96,7 +96,7 @@ for (const variant of ['--url', 'linked PGURI']) {
 
 test('dry-run lists the queue without a database, credentials, or URL prompt', platformOptions, (t) => {
   const f = fixture(t);
-  for (const args of [['seed', '--dry-run'], ['seed', '--linked', '--dry-run']]) {
+  for (const args of [['seed', '--dry-run'], ['seed', '--remote', '--dry-run']]) {
     const result = f.run(args);
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /001_orders\.sql/);

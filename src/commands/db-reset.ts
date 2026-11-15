@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { verifyProjectSeedConnection } from '../lib/project-seed-connection.js';
+import { resolveResetRemote } from '../lib/reset-target.js';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
@@ -17,6 +19,7 @@ export type PostSeedCommandOptions = {
   tempDir?: string;
   env?: string;
   strictMixed?: boolean;
+  remote?: boolean | string;
   linked?: boolean;
   dbUrl?: string;
   url?: string;
@@ -182,9 +185,18 @@ async function runPostSeedCommand(
   cutoffTimestampRaw: string | undefined,
   options: PostSeedCommandOptions = {},
 ) {
-  let remoteTarget = resolveRemoteTarget(mode, options);
+  if (options.remote !== undefined && (options.linked || explicitDbUrl(options))) {
+    throw new Error('Use --remote, --linked, or --db-url / --url, not multiple target options.');
+  }
+  if (options.remote !== undefined && (mode !== 'reset' || options.psql)) {
+    throw new Error('--remote is only supported by db reset and cannot be combined with --psql.');
+  }
+  const resolvedRemote = options.remote !== undefined ? await resolveResetRemote(options.remote) : null;
+  let remoteTarget = resolvedRemote
+    ? { args: [...resolvedRemote.targetArgs, '--yes'], label: resolvedRemote.label, isDbUrl: true }
+    : resolveRemoteTarget(mode, options);
   const linkedTarget = options.linked === true;
-  let effectiveDbUrl = explicitDbUrl(options);
+  let effectiveDbUrl = resolvedRemote?.dbUrl ?? explicitDbUrl(options);
   const resumableSeed = remoteTarget !== null || options.resumableSeed === true;
 
   if (resumableSeed && !remoteTarget) {
@@ -200,7 +212,7 @@ async function runPostSeedCommand(
     };
   }
 
-  if (resumableSeed && !effectiveDbUrl) {
+  if (resumableSeed && !effectiveDbUrl && !resolvedRemote?.projectRef) {
     throw new Error('--resumable-seed requires --db-url, SUPABASE_DB_URL, or PGURI.');
   }
 
@@ -214,7 +226,9 @@ async function runPostSeedCommand(
     console.log(info('Target: local database'));
   }
 
-  const resolvedCutoff = await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env });
+  if (resolvedRemote?.projectRef) await verifyProjectSeedConnection(resolvedRemote.projectRef, options.keepTriggers);
+
+  const resolvedCutoff = await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env, targetArgs: resolvedRemote?.targetArgs });
   const resolvedCutoffRaw = resolvedCutoff.value;
   const cutoff = parseCutoffTimestamp(resolvedCutoffRaw);
 
@@ -315,7 +329,7 @@ async function runPostSeedCommand(
 
   const cutoffSourceSuffix =
     resolvedCutoff.source === 'linked'
-      ? ' (auto-detected from linked project)'
+      ? resolvedRemote ? ' (auto-detected from selected target)' : ' (auto-detected from linked project)'
       : resolvedCutoff.source === 'config'
         ? ' (from postSeedCutoff in config)'
         : '';
@@ -361,7 +375,7 @@ async function runPostSeedCommand(
 
   if (remoteTarget) {
     console.log(info(`Target: ${remoteTarget.label}`));
-    if (remoteTarget.isDbUrl && !linkedTarget && resolvedCutoff.source === 'linked') {
+    if (remoteTarget.isDbUrl && !linkedTarget && !resolvedRemote && resolvedCutoff.source === 'linked') {
       console.log(
         warn(
           'Cutoff was auto-detected from the linked project, which may differ from the --db-url target. Pass an explicit cutoff if they are not the same database.',
@@ -470,12 +484,12 @@ async function runPostSeedCommand(
   if (failedStep === 0 && resumableSeed) {
     try {
       console.log('');
-      await runSeedCommand({ dbUrl: effectiveDbUrl, keepTriggers: options.keepTriggers });
+      await runSeedCommand({ dbUrl: effectiveDbUrl, projectRef: resolvedRemote?.projectRef, keepTriggers: options.keepTriggers });
     } catch (error) {
       failedStep = 4;
       stepLabel = 'seed remote (psql)';
       failureMessage = error instanceof Error ? error.message : String(error);
-      const migrationTarget = linkedTarget ? '--linked --yes' : "--db-url 'YOUR_DATABASE_URL' --yes";
+      const migrationTarget = resolvedRemote ? `${resolvedRemote.targetArgs[0].includes('postgres') ? '--remote=YOUR_DATABASE_URL' : resolvedRemote.targetArgs[0]} --yes` : linkedTarget ? '--linked --yes' : "--db-url 'YOUR_DATABASE_URL' --yes";
       console.log(
         warn(`Once seeding is complete, finish by applying the post-cutoff migrations: supabase migration up ${migrationTarget}`),
       );

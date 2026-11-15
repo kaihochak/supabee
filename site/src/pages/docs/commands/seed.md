@@ -58,3 +58,23 @@ By default, triggers and foreign-key checks are disabled for the session through
 | `--keep-triggers` | Keep triggers and foreign-key checks active. |
 
 `psql` must be installed and available on your path. After resuming an interrupted remote reset, apply the deferred migrations separately against the same target; `seed` only loads data.
+
+## Project-based remote seeding
+
+```bash
+supabase login
+supabee seed --remote
+supabee seed --remote=<project-ref> --from <failed-file>
+```
+
+`--remote` also accepts a branch name/UUID or a Postgres URL using `=`. Project
+and branch targets obtain temporary credentials using `supabase login` or
+`SUPABASE_ACCESS_TOKEN`; no connection URL prompt is shown. Supabee assumes the
+`postgres` role before applying timeout and trigger settings in each session.
+Credentials are refreshed before new file connections when necessary. Failed
+seed SQL is never retried automatically. `--keep-triggers` keeps FK checks and
+triggers active. Dry runs do not resolve authentication or connect.
+
+Automatic credentials support the default Supabase cloud profile and use an
+experimental login-role API. Legacy `--linked` / `--url` modes retain their URL
+behavior. Use only one target option.

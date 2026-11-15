@@ -281,6 +281,34 @@ SUPABASE_DB_URL="postgresql://...:5432/postgres?sslmode=require" supabee db rese
 supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --yes
 ```
 
+#### Automatic remote connections (Supabase CLI v3)
+
+```bash
+supabase login
+supabee db reset --remote
+supabee db reset --remote=<project-ref>
+supabee db reset --remote=<branch>
+supabee db reset --remote="postgresql://...:5432/postgres?sslmode=require"
+```
+
+Bare `--remote` resolves `SUPABASE_PROJECT_ID`, then the saved project link, then
+an interactive project picker. Project and branch targets reuse Supabase login or
+`SUPABASE_ACCESS_TOKEN` to obtain temporary seed credentials; no database URL
+prompt is needed. The same project is used for cutoff detection, reset, seeding,
+and migration replay. A seed connection check runs before reset, and fresh
+credentials are obtained after reset. Remote resets require confirmation or `--yes`.
+
+Resume a failed project seed without resetting again:
+
+```bash
+supabee seed --remote=<project-ref> --from <failed-file>
+supabase migration up --remote=<project-ref> --yes
+```
+
+Automatic credentials support the default Supabase cloud profile and use an
+experimental login-role API. Explicit URL targets and legacy URL flags remain
+supported. Live Supabase validation is still pending.
+
 ### `seed`
 
 Loads seed files into the current local Supabase database, or a remote database with `--linked` / `--url`. It only loads data: it does not reset the schema or apply migrations. Requires `psql`.

@@ -1,3 +1,5 @@
+import { checkProjectSeedConnection, createProjectSeedConnectionProvider } from '../lib/project-seed-connection.js';
+import { resolveResetRemote } from '../lib/reset-target.js';
 import { runCommand } from '../lib/subprocess.js';
 import { sectionWithNote, title, info, ok, fail, warn } from '../lib/ui.js';
 import { discoverSeedFiles, type SeedFile } from '../lib/seed-files.js';
@@ -6,6 +8,8 @@ import { explicitDbUrl, resolveRemoteDbUrl } from '../lib/remote-db-url.js';
 import { resolveLocalDbUrl } from '../lib/local-db-url.js';
 
 export type SeedOptions = {
+  remote?: boolean | string;
+  projectRef?: string;
   linked?: boolean;
   url?: string;
   dbUrl?: string;
@@ -23,23 +27,26 @@ function findResumeIndex(files: SeedFile[], from: string): number {
   );
 }
 
-function printResumeHint(file: SeedFile, keepTriggers: boolean, remote: boolean) {
+function printResumeHint(file: SeedFile, keepTriggers: boolean, remote: boolean, projectRef?: string) {
   const triggersFlag = keepTriggers ? ' --keep-triggers' : '';
   console.log('');
   console.log(warn('Seeding stopped — the schema is intact, only data is incomplete.'));
   console.log(info('Resume from the failed file (already-seeded files are skipped):'));
   console.log(
     info(
-      `  supabee seed${remote ? ' --linked' : ''} --from ${file.basename}${triggersFlag}`,
+      `  supabee seed${projectRef ? ` --remote=${projectRef}` : remote ? ' --linked' : ''} --from ${file.basename}${triggersFlag}`,
     ),
   );
-  if (remote) console.log(info('Use the same database URL as this run; --linked reads SUPABASE_DB_URL / PGURI or prompts securely.'));
+  if (remote && !projectRef) console.log(info('Use the same database URL as this run; --linked reads SUPABASE_DB_URL / PGURI or prompts securely.'));
 }
 
 export async function runSeedCommand(options: SeedOptions = {}) {
   const explicitUrl = explicitDbUrl(options);
   if (options.linked && explicitUrl) throw new Error('Use either --linked or --url / --db-url, not both.');
-  const remote = options.linked === true || explicitUrl !== undefined;
+  if ((options.remote !== undefined || options.projectRef) && (options.linked || explicitUrl || (options.remote !== undefined && options.projectRef))) {
+    throw new Error('Choose one seed target: --remote, --linked, or --url / --db-url.');
+  }
+  const remote = options.remote !== undefined || Boolean(options.projectRef) || options.linked === true || explicitUrl !== undefined;
   const { files, patterns } = discoverSeedFiles({
     configPath: options.configPath,
     supabaseDir: options.supabaseDir,
@@ -92,19 +99,29 @@ export async function runSeedCommand(options: SeedOptions = {}) {
     return;
   }
 
-  const dbUrl = explicitUrl ?? (remote
+  const target = options.remote !== undefined ? await resolveResetRemote(options.remote) : undefined;
+  const projectRef = options.projectRef ?? target?.projectRef;
+  const projectConnection = projectRef ? createProjectSeedConnectionProvider(projectRef) : undefined;
+  const fixedUrl = projectConnection ? undefined : explicitUrl ?? target?.dbUrl ?? (remote
     ? await resolveRemoteDbUrl('supabee seed --linked')
     : await resolveLocalDbUrl());
 
+  let checkedConnection: string | undefined;
   for (let i = 0; i < queue.length; i += 1) {
     const file = queue[i];
     console.log(info(`[${i + 1}/${queue.length}] Seeding ${file.relPath}...`));
     try {
-      if (i === 0) console.log(info(`Target: ${remote ? 'remote' : 'local'} database at ${new URL(dbUrl).hostname}:${new URL(dbUrl).port || '5432'}.`));
+      const connection = await projectConnection?.();
+      if (connection && connection.dbUrl !== checkedConnection) {
+        await checkProjectSeedConnection(connection, options.keepTriggers);
+        checkedConnection = connection.dbUrl;
+      }
+      const dbUrl = connection?.dbUrl ?? fixedUrl!;
+      if (i === 0) console.log(info(`Target: ${projectRef ? `project ${projectRef}` : remote ? 'remote' : 'local'} database at ${new URL(dbUrl).hostname}:${new URL(dbUrl).port || '5432'}.`));
       await withPsqlConnection(dbUrl, async (env) => {
         await runCommand('psql', [
           '-X', '-w', '--single-transaction', '-v', 'ON_ERROR_STOP=1',
-          '-c', sessionSetupSql,
+          '-c', [connection?.sessionSetupSql, sessionSetupSql].filter(Boolean).join(' '),
           '-f', file.absPath,
         ], {
           env,
@@ -114,7 +131,7 @@ export async function runSeedCommand(options: SeedOptions = {}) {
     } catch (error) {
       console.log('');
       console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));
-      printResumeHint(file, options.keepTriggers === true, remote);
+      printResumeHint(file, options.keepTriggers === true, remote, projectRef);
       throw new Error(`${remote ? 'Remote' : 'Local'} seeding failed at ${file.relPath}.`);
     }
   }

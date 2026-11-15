@@ -54,6 +54,18 @@ All remote targets enable resumable seeding automatically. An explicit target su
 4. Reapply deferred post-cutoff migrations (`supabase migration up --db-url <url> --yes`).
 5. On seed failure: stop before the migration reapply, surface the `--from` resume command, and note that after seeding completes the post-cutoff migrations still need applying.
 
+## Project-based targets (Supabase CLI v3)
+
+`supabee db reset --remote` and `supabee seed --remote` resolve the linked project,
+while `--remote=<project-ref|branch|postgres-url>` selects an explicit target.
+Project and branch targets reuse the default-profile Supabase login or an access
+token to obtain temporary credentials. They do not request a separate URL or read
+URL environment settings. Reset checks the seed connection after confirmation,
+then obtains fresh credentials after rebuilding. Seed connections refresh before
+new file loads as needed, and failures print a project-specific resume command.
+The login-role API is experimental; live validation remains a follow-up below.
+Legacy `--linked` and URL flags retain the behavior documented above.
+
 ## CLI Interface
 1. `supabee seed [--linked | --url <url>] [--from <file>] [--dry-run] [--keep-triggers]`
 2. `supabee db reset [cutoffTimestamp] --db-url <url> [--yes]`
@@ -104,5 +116,7 @@ Historical end-to-end validation against a disposable Postgres (Docker), before 
 - [x] Keep plain `supabee db reset` local and print its target explicitly. Verify that remote project/URL environment settings do not retarget reset or migration replay; preserve seed-snapshot cutoff detection.
 - [x] Implement reusable linked-project identity lookup: `SUPABASE_PROJECT_ID` → saved `supabase/.temp/project-ref` → interactive Supabase project picker; fail in noninteractive mode without a selection. Return the validated project reference and its source. Preserve the saved link when environment selection wins; stop on invalid references, unreadable files, and cancelled pickers.
 - [x] Verify lookup precedence, whitespace handling, invalid references, missing selections, picker persistence/cancellation, and the `supabase link` subprocess working directory with isolated tests. Document identity-only behavior and picker persistence requirements without contacting a live project.
-- [ ] Integrate the lookup into the complete reset target workflow and verify target consistency across cutoff detection, reset, and migration replay.
-- [ ] Integrate automatic project-based seed connections, credential expiry handling, and access-token authentication; validate permissions and trigger handling on a disposable project.
+- [x] Integrate linked-project lookup into `db reset --remote` and forward the resolved project reference consistently to cutoff detection, reset, and migration replay. Verify environment/saved-link precedence, explicit project/branch/URL forwarding, and local isolation with command stubs. Project targets now use automatic seed credentials and ignore URL environment settings.
+- [x] Integrate automatic project-based seed credentials into reset and standalone seed/resume. Reuse the environment token or default-profile Supabase login from OS keyring/token file; preflight role and trigger setup after confirmation and before reset, obtain fresh credentials after reset, and refresh before new file connections. Preserve URL-free resume hints and explicit URL/local behavior; verify with isolated API, socket, and subprocess stubs.
+- [ ] Extract CLI command registration and help into command modules; keep the entry point focused on startup, parsing, and errors. Reuse handler option types and derive passthrough routing from registered commands. Verify unchanged help/version output, mocked forwarding, and existing CLI regression coverage.
+- [ ] Validate temporary-role permissions, credential propagation, expiry/refresh, and trigger handling against a disposable live Supabase project. Nondefault cloud profiles continue to require an explicit URL.

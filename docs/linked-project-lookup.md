@@ -20,8 +20,13 @@ reset a database, or seed data. The interactive fallback runs Supabase's link
 workflow, including its authentication and local project-link updates.
 
 The picker callback must save its selection using Supabase's standard link file.
-Command integration and automatic seed credentials are separate follow-ups.
-This primitive does not change CLI target flags or existing URL-based behavior.
+`db reset --remote` uses this lookup, then forwards the selected project reference
+to cutoff detection, reset, and migration replay. Explicit projects and branches
+also use their resolved project reference; explicit URLs remain URL targets.
+Project targets obtain temporary seed credentials using Supabase login or
+`SUPABASE_ACCESS_TOKEN`; they do not prompt for a separate URL and ignore stale
+`SUPABASE_DB_URL` / `PGURI` values. Explicit URL targets use their supplied URL.
+Plain reset stays local; legacy URL-based target options retain their behavior.
 
 Tests exercise lookup ordering, saved files, noninteractive failures, and
 picker success/cancellation with a stub picker. They never open a real picker

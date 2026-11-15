@@ -6,10 +6,11 @@ import { runSchemaCommand } from './commands/schema.js';
 import { runDataCommand } from './commands/data.js';
 import { runInitCommand } from './commands/init.js';
 import { runSyncCommand } from './commands/sync.js';
-import { runDbResetCommand, runStartCommand } from './commands/db-reset.js';
+import { runDbResetCommand, runStartCommand, type PostSeedCommandOptions } from './commands/db-reset.js';
 import { runSeedCommand, type SeedOptions } from './commands/seed.js';
-import { runCutoffDetectCommand } from './commands/cutoff.js';
+import { runCutoffDetectCommand, type CutoffDetectOptions } from './commands/cutoff.js';
 import {
+  type MigrationAuditOptions, type MigrationMarkOptions, type MigrationUnmarkOptions, type MigrationSplitMixedOptions,
   runMigrationAuditCommand,
   runMigrationMarkCommand,
   runMigrationSplitMixedCommand,
@@ -148,9 +149,9 @@ Main Workflows
   supabee sync schema
   supabee sync data
   supabee db reset [cutoff_timestamp]
-  supabee db reset --linked              Remote reset (resumable; prompts for DB URL)
+  supabee db reset --remote              Remote reset using Supabase login (resumable)
   supabee seed                          Seed the local project without resetting
-  supabee seed --linked                 Seed a remote database (prompts for DB URL)
+  supabee seed --remote                 Seed the linked project using Supabase login
   supabee start [cutoff_timestamp]
 
 Setup (once per project)
@@ -161,6 +162,10 @@ Examples
   supabee sync schema
   supabee sync data
   supabee db reset 20260309180959
+  supabee db reset --remote
+  supabee db reset --remote=<project-ref>
+  supabee db reset --remote=<branch>
+  supabee db reset --remote="postgresql://...:5432/postgres?sslmode=require"
   supabee db reset --linked
   supabee start 20260309180959
 
@@ -177,23 +182,27 @@ program
     await runInitCommand([]);
   });
 
-  for (const commandName of ['schema', 'data']) {
-  program
-    .command(`${commandName} [step] [reconstructed]`)
-    .description(`${commandName} split/reconstruct/validate (process an existing local dump)`)
-    .option('--input <path>', 'Input SQL file or split folder (reconstruct)')
-    .option('--output <path>', 'Split output folder (split) or reconstructed file')
-    .option('--backup', 'Backup existing split output before replacing')
-    .option('--no-backup', 'Do not backup dirty split output folder before split')
-    .action(async (step?: string, reconstructed?: string, options: StepCliOptions = {}) => {
-      const forwarded = buildStepArgs(step, reconstructed, options);
-      if (commandName === 'schema') {
-        await runSchemaCommand(forwarded);
-        return;
-      }
-      await runDataCommand(forwarded);
-    });
-}
+program
+  .command('schema [step] [reconstructed]')
+  .description('schema split/reconstruct/validate (process an existing local dump)')
+  .option('--input <path>', 'Input SQL file or split folder (reconstruct)')
+  .option('--output <path>', 'Split output folder (split) or reconstructed file')
+  .option('--backup', 'Backup existing split output before replacing')
+  .option('--no-backup', 'Do not backup dirty split output folder before split')
+  .action((step?: string, reconstructed?: string, options: StepCliOptions = {}) =>
+    runSchemaCommand(buildStepArgs(step, reconstructed, options)),
+  );
+
+program
+  .command('data [step] [reconstructed]')
+  .description('data split/reconstruct/validate (process an existing local dump)')
+  .option('--input <path>', 'Input SQL file or split folder (reconstruct)')
+  .option('--output <path>', 'Split output folder (split) or reconstructed file')
+  .option('--backup', 'Backup existing split output before replacing')
+  .option('--no-backup', 'Do not backup dirty split output folder before split')
+  .action((step?: string, reconstructed?: string, options: StepCliOptions = {}) =>
+    runDataCommand(buildStepArgs(step, reconstructed, options)),
+  );
 
 const syncCommand = program
   .command('sync')
@@ -265,7 +274,7 @@ cutoffCommand
   .description('Resolve cutoff from argument, linked migration alignment, or configured fallback')
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
   .option('--json', 'Print machine-readable JSON output')
-  .action((cutoffTimestamp: string | undefined, options: { env?: string; json?: boolean } = {}) =>
+  .action((cutoffTimestamp: string | undefined, options: CutoffDetectOptions = {}) =>
     runCutoffDetectCommand(cutoffTimestamp, options),
   );
 
@@ -277,7 +286,7 @@ migrationCommand
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--json', 'Print machine-readable audit output')
   .option('--verbose', 'Include detailed classifier evidence in output')
-  .action((options: { migrationsDir?: string; json?: boolean; verbose?: boolean } = {}) => runMigrationAuditCommand(options));
+  .action((options: MigrationAuditOptions = {}) => runMigrationAuditCommand(options));
 
 migrationCommand
   .command('mark')
@@ -285,7 +294,7 @@ migrationCommand
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--dry-run', 'Preview marker updates without writing files')
   .option('--yes', 'Apply all suggested marker updates without interactive prompts')
-  .action((options: { migrationsDir?: string; dryRun?: boolean; yes?: boolean } = {}) =>
+  .action((options: MigrationMarkOptions = {}) =>
     runMigrationMarkCommand(options),
   );
 
@@ -295,14 +304,14 @@ migrationCommand
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--dry-run', 'Preview marker removals without writing files')
   .option('--yes', 'Remove all found marker updates without interactive prompts')
-  .action((options: { migrationsDir?: string; dryRun?: boolean; yes?: boolean } = {}) => runMigrationUnmarkCommand(options));
+  .action((options: MigrationUnmarkOptions = {}) => runMigrationUnmarkCommand(options));
 
 migrationCommand
   .command('split-mixed')
   .description('Preview or apply mixed-migration split rewrites')
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--apply', 'Apply planned rewrite after confirmation')
-  .action((options: { migrationsDir?: string; apply?: boolean } = {}) => runMigrationSplitMixedCommand(options));
+  .action((options: MigrationSplitMixedOptions = {}) => runMigrationSplitMixedCommand(options));
 
 const dbCommand = program.command('db').description('Database orchestration commands');
 
@@ -314,8 +323,9 @@ dbCommand
   .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
   .option('--temp-dir <path>', 'Temporary directory for deferred migrations', 'supabase/.tmp-migrations')
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
-  .option('--linked', 'Reset the linked project with resumable direct-psql seeding (prompts for confirmation and DB URL)')
-  .option('--db-url <url>', 'Reset this remote database with resumable seeding (port 5432; prompts for confirmation)')
+  .option('--remote [target]', 'Reset linked project, project ref, branch name/UUID, or Postgres URL (Supabase CLI v3)')
+  .option('--linked', 'Legacy URL-based remote mode (reads environment URL or prompts for one)')
+  .option('--db-url <url>', 'Legacy explicit URL option; prefer --remote=<postgres-url>')
   .option('--url <url>', 'Alias for --db-url')
   .option('--yes', 'Skip the remote-reset confirmation prompt (for CI / non-interactive runs)')
   .option('--resumable-seed', 'Compatibility flag: resumable seeding is automatic for all remote resets')
@@ -324,48 +334,44 @@ dbCommand
     'after',
     `
 What This Command Does
-  1) Defers migrations with timestamps greater than <cutoffTimestamp>
-  2) Runs \`supabase db reset\` (add --linked/--db-url to target a remote database)
-  3) Restores deferred migration files
-  4) Reapplies deferred migrations
+  1) Resolves the target and cutoff, then defers newer migrations
+  2) Runs \`supabase db reset\` (local by default; --remote selects a remote target)
+  3) Restores migration files and loads remote seed data file-by-file via psql
+  4) Applies the newer migrations after seeding
 
-Remote resets are destructive: they WIPE the target database and reseed it from
-local seed files. They prompt for confirmation; pass --yes to skip that prompt.
+Remote Target Selection (Supabase CLI v3)
+  --remote                 Linked project: environment -> saved link -> project picker
+  --remote=<project-ref>   Explicit project
+  --remote=<branch>        Branch name or UUID under the linked project
+  --remote=<postgres-url>  Explicit Direct or Session pooler URL on port 5432
 
---linked uses resumable seeding automatically and securely prompts for a port-5432
-URL: Direct connection for IPv6 or Session pooler for IPv4. Never use port 6543.
-Set SUPABASE_DB_URL or PGURI to avoid the URL prompt (CI).
+Project and branch targets reuse supabase login or SUPABASE_ACCESS_TOKEN.
+Temporary seed credentials are obtained automatically; no separate URL is needed.
+The seed connection is checked before reset. Remote resets WIPE the target's
+application schema and data. Confirmation is required; --yes skips the prompt.
 
-Both --linked and --db-url reset without Supabase's seed step, then load data
-file-by-file via psql. Use a Direct connection or Session pooler on port 5432.
-If seeding fails, resume with
-\`supabee seed --linked --from <file>\` instead of starting over.
+Resume a failed project seed without resetting again:
+  supabee seed --remote=<project-ref> --from <failed-file>
+  supabase migration up --remote=<project-ref> --yes
+
+Legacy URL Options
+  --linked reads SUPABASE_DB_URL / PGURI or prompts securely for a database URL.
+  --db-url and --url accept an explicit database URL. These remain supported.
 
 Examples
-  supabee db reset 20260309180959
   supabee db reset
-  supabee db reset 20260309180959 --psql
-  supabee db reset --linked
-  supabee db reset 20260309180959 --linked --yes
-  supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --yes
+  supabee db reset 20260309180959
+  supabee db reset --remote
+  supabee db reset --remote=<project-ref>
+  supabee db reset --remote=<branch>
+  supabee db reset --remote="postgresql://...:5432/postgres?sslmode=require"
+  supabee db reset 20260309180959 --remote --yes
 `,
   )
   .action(
     (
       cutoffTimestamp: string | undefined,
-      options: {
-        psql?: boolean;
-        strictMixed?: boolean;
-        migrationsDir?: string;
-        tempDir?: string;
-        env?: string;
-        linked?: boolean;
-        dbUrl?: string;
-        url?: string;
-        yes?: boolean;
-        resumableSeed?: boolean;
-        keepTriggers?: boolean;
-      } = {},
+      options: PostSeedCommandOptions = {},
     ) => runDbResetCommand(cutoffTimestamp, options),
   );
 
@@ -374,12 +380,13 @@ dbCommand
   .allowUnknownOption()
   .allowExcessArguments()
   .action(() => {
-    throw new Error('`supabee db seed-remote` has moved. Use `supabee seed --linked` or `supabee seed --url <url>`.');
+    throw new Error('`supabee db seed-remote` has moved. Use `supabee seed --remote` or `supabee seed --url <url>`.');
   });
 
 program
   .command('seed')
-  .description('Seed the local project, or a remote project/database with --linked / --url')
+  .description('Seed the local project, or a remote project/database with --remote / --url')
+  .option('--remote [target]', 'Seed linked project, project ref, branch, or URL; uses Supabase login for project targets')
   .option('--linked', 'Seed a remote database using SUPABASE_DB_URL / PGURI or a hidden URL prompt')
   .option('--url <url>', 'Seed this remote database (Direct connection or Session pooler, port 5432)')
   .option('--db-url <url>', 'Alias for --url')
@@ -397,6 +404,8 @@ What This Command Does
 
 Without a remote option, uses the local project's connection from supabase status.
 --linked reads SUPABASE_DB_URL / PGURI or securely prompts for a URL, like db reset.
+--remote uses the linked project or --remote=<project-ref|branch|postgres-url>.
+Project targets reuse supabase login or SUPABASE_ACCESS_TOKEN; no URL prompt.
 --url (alias --db-url) supplies a remote URL directly. Do not combine it with --linked.
 Remote connections require Direct connection or Session pooler on port 5432.
 This only loads data: it does not reset the database or apply migrations.
@@ -438,7 +447,7 @@ Examples
   .action(
     (
       cutoffTimestamp: string | undefined,
-      options: { psql?: boolean; strictMixed?: boolean; migrationsDir?: string; tempDir?: string; env?: string } = {},
+      options: PostSeedCommandOptions = {},
     ) => runStartCommand(cutoffTimestamp, options),
   );
 

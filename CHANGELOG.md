@@ -15,6 +15,7 @@ reviewing the release PR, including migration requirements that generated summar
 - Data splitting preserves multiline SQL values containing semicolons, blank lines, and standard-conforming values ending in backslashes instead of truncating or corrupting seed rows.
 
 ### Changed
+- Added `--remote[=<project-ref|branch|postgres-url>]` to reset and seed. Project targets reuse Supabase login for temporary seed credentials, check the seed connection before reset, refresh credentials, and print project-based resume commands without requiring a database URL.
 - Added `supabee seed` for the current local Supabase project and `supabee seed --linked` for remote seeding with the same hidden URL prompt as reset. `--url` and `--db-url` select an explicit remote target; reset also accepts `--url`. Both local and remote seeding reuse the same file-level transaction and resume behavior.
 - The interactive linked-reset URL prompt now suggests a missing `/postgres` database or `sslmode=require` setting and asks `[Y/n]` before applying them. Existing settings and non-interactive URLs are preserved.
 

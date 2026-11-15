@@ -41,7 +41,7 @@ supabee start
 | Setup | `init` | Configure Supabee and seed paths |
 | Linked dumps | `sync schema`, `sync data` | Pull and process linked project dumps |
 | Processing | `schema`, `data` | Process existing SQL dump files |
-| Database | `db reset`, `db seed-remote`, `start` | Rebuild, seed, and start databases |
+| Database | `db reset`, `seed`, `start` | Rebuild, seed, and start databases |
 | Migrations | `migration *`, `cutoff detect` | Audit and organize migration replay |
 
 Continue with [Getting started](/docs/getting-started/) to install Supabee and configure your first project.

@@ -7,7 +7,7 @@ import { runDataCommand } from './commands/data.js';
 import { runInitCommand } from './commands/init.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runDbResetCommand, runStartCommand } from './commands/db-reset.js';
-import { runSeedRemoteCommand } from './commands/seed-remote.js';
+import { runSeedCommand, type SeedOptions } from './commands/seed.js';
 import { runCutoffDetectCommand } from './commands/cutoff.js';
 import {
   runMigrationAuditCommand,
@@ -40,7 +40,7 @@ function buildStepArgs(step?: string, reconstructed?: string, options: StepCliOp
   return args;
 }
 
-const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'start', 'cutoff', 'migration', 'help']);
+const KNOWN_TOP_LEVEL_COMMANDS = new Set(['init', 'schema', 'data', 'sync', 'db', 'seed', 'start', 'cutoff', 'migration', 'help']);
 const KNOWN_DB_SUBCOMMANDS = new Set(['reset', 'seed-remote', 'help']);
 const KNOWN_MIGRATION_SUBCOMMANDS = new Set(['audit', 'mark', 'unmark', 'split-mixed', 'help']);
 
@@ -149,6 +149,8 @@ Main Workflows
   supabee sync data
   supabee db reset [cutoff_timestamp]
   supabee db reset --linked              Remote reset (resumable; prompts for DB URL)
+  supabee seed                          Seed the local project without resetting
+  supabee seed --linked                 Seed a remote database (prompts for DB URL)
   supabee start [cutoff_timestamp]
 
 Setup (once per project)
@@ -314,6 +316,7 @@ dbCommand
   .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
   .option('--linked', 'Reset the linked project with resumable direct-psql seeding (prompts for confirmation and DB URL)')
   .option('--db-url <url>', 'Reset this remote database with resumable seeding (port 5432; prompts for confirmation)')
+  .option('--url <url>', 'Alias for --db-url')
   .option('--yes', 'Skip the remote-reset confirmation prompt (for CI / non-interactive runs)')
   .option('--resumable-seed', 'Compatibility flag: resumable seeding is automatic for all remote resets')
   .option('--keep-triggers', 'Keep triggers/FK checks active during remote seeding (default: disabled)')
@@ -336,7 +339,7 @@ Set SUPABASE_DB_URL or PGURI to avoid the URL prompt (CI).
 Both --linked and --db-url reset without Supabase's seed step, then load data
 file-by-file via psql. Use a Direct connection or Session pooler on port 5432.
 If seeding fails, resume with
-\`supabee db seed-remote --from <file>\` instead of starting over.
+\`supabee seed --linked --from <file>\` instead of starting over.
 
 Examples
   supabee db reset 20260309180959
@@ -358,6 +361,7 @@ Examples
         env?: string;
         linked?: boolean;
         dbUrl?: string;
+        url?: string;
         yes?: boolean;
         resumableSeed?: boolean;
         keepTriggers?: boolean;
@@ -366,9 +370,19 @@ Examples
   );
 
 dbCommand
-  .command('seed-remote')
-  .description('Seed a remote database from split seed files via psql (resumable on timeout)')
-  .option('--db-url <url>', 'Postgres connection string (falls back to SUPABASE_DB_URL / PGURI env)')
+  .command('seed-remote', { hidden: true })
+  .allowUnknownOption()
+  .allowExcessArguments()
+  .action(() => {
+    throw new Error('`supabee db seed-remote` has moved. Use `supabee seed --linked` or `supabee seed --url <url>`.');
+  });
+
+program
+  .command('seed')
+  .description('Seed the local project, or a remote project/database with --linked / --url')
+  .option('--linked', 'Seed a remote database using SUPABASE_DB_URL / PGURI or a hidden URL prompt')
+  .option('--url <url>', 'Seed this remote database (Direct connection or Session pooler, port 5432)')
+  .option('--db-url <url>', 'Alias for --url')
   .option('--from <file>', 'Resume from this seed file (inclusive); matches by file name or relative path')
   .option('--dry-run', 'Print the ordered seed queue and exit without seeding')
   .option('--keep-triggers', 'Keep triggers/FK checks active during seeding (default: disabled, like a restore)')
@@ -381,20 +395,22 @@ What This Command Does
   3) Disables statement_timeout so long inserts are not cut off
   4) On failure, prints a --from command to resume from the failed file
 
-Because each file is atomic, a timeout rolls that file back — the remote schema
-stays healthy and resume re-runs the failed file with no duplicate rows. Use the
-Direct connection (IPv6) or Session pooler (IPv4), both on port 5432. Do not use
-Transaction pooler on port 6543.
+Without a remote option, uses the local project's connection from supabase status.
+--linked reads SUPABASE_DB_URL / PGURI or securely prompts for a URL, like db reset.
+--url (alias --db-url) supplies a remote URL directly. Do not combine it with --linked.
+Remote connections require Direct connection or Session pooler on port 5432.
+This only loads data: it does not reset the database or apply migrations.
+--dry-run only lists files and does not connect to a database or prompt for a URL.
 
 Examples
-  supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require"
-  supabee db seed-remote --db-url "postgresql://...:5432/postgres" --dry-run
-  supabee db seed-remote --db-url "postgresql://...:5432/postgres" --from 015_public_cities_69.sql
+  supabee seed
+  supabee seed --dry-run
+  supabee seed --linked
+  supabee seed --linked --from 015_public_cities_69.sql
+  supabee seed --url "postgresql://...:5432/postgres?sslmode=require"
 `,
   )
-  .action((options: { dbUrl?: string; from?: string; dryRun?: boolean; keepTriggers?: boolean } = {}) =>
-    runSeedRemoteCommand(options),
-  );
+  .action((options: SeedOptions = {}) => runSeedCommand(options));
 
 program
   .command('start [cutoffTimestamp]')

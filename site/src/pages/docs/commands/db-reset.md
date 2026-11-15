@@ -35,7 +35,7 @@ For remote targets, `--linked` or `--db-url <url>` performs a destructive reset 
 | `--migrations-dir`, `--temp-dir` | Override the migrations directory or temporary workspace for deferred/stubbed files. |
 | `--env <name>` | Select an environment-specific cutoff fallback. |
 
-Remote reset is destructive: it wipes the target's `public` schema. Confirm the URL and cutoff before proceeding. If resumable seeding fails, the command reports a `supabee db seed-remote --from ...` resume command.
+Remote reset is destructive: it wipes the target's `public` schema. Confirm the URL and cutoff before proceeding. If resumable seeding fails, the command reports a `supabee seed --linked --from ...` resume command.
 
 Read the [database lifecycle workflow](/docs/database-lifecycle/#reset-a-local-database) before using remote-reset options. Remote reset wipes the target database's `public` schema.
 

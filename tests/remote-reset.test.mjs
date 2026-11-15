@@ -102,7 +102,7 @@ test('failed remote seed stops migrations and can resume from the failing file',
   assert.deepEqual(f.calls().map((call) => call.command), ['supabase', 'psql', 'psql']);
   assert.ok(!fs.existsSync(f.calls()[1].serviceFile));
   assert.equal(fs.readdirSync(f.migrations).length, 2);
-  const resumed = f.run(['db', 'seed-remote', '--db-url', dbUrl, '--from', '002_orders.sql']);
+  const resumed = f.run(['seed', '--url', dbUrl, '--from', '002_orders.sql']);
   assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
   const calls = f.calls();
   assert.equal(calls.length, 4);

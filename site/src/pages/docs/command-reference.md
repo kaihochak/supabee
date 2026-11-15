@@ -20,7 +20,7 @@ Choose a command below for its full behavior, options, and examples. The workflo
 
 - [`supabee start`](/docs/commands/start/)
 - [`supabee db reset`](/docs/commands/db-reset/)
-- [`supabee db seed-remote`](/docs/commands/db-seed-remote/)
+- [`supabee seed`](/docs/commands/seed/)
 
 ## Migration utilities
 

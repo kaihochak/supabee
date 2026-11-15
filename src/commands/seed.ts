@@ -2,8 +2,12 @@ import { runCommand } from '../lib/subprocess.js';
 import { sectionWithNote, title, info, ok, fail, warn } from '../lib/ui.js';
 import { discoverSeedFiles, type SeedFile } from '../lib/seed-files.js';
 import { withPsqlConnection } from '../lib/psql-connection.js';
+import { explicitDbUrl, resolveRemoteDbUrl } from '../lib/remote-db-url.js';
+import { resolveLocalDbUrl } from '../lib/local-db-url.js';
 
-export type SeedRemoteOptions = {
+export type SeedOptions = {
+  linked?: boolean;
+  url?: string;
   dbUrl?: string;
   from?: string;
   dryRun?: boolean;
@@ -12,16 +16,6 @@ export type SeedRemoteOptions = {
   supabaseDir?: string;
 };
 
-function resolveDbUrl(optionUrl?: string): string {
-  const fromOption = optionUrl?.trim();
-  if (fromOption) return fromOption;
-  const fromEnv = process.env.SUPABASE_DB_URL?.trim() || process.env.PGURI?.trim();
-  if (fromEnv) return fromEnv;
-  throw new Error(
-    'db seed-remote requires a connection string. Pass --db-url <url> (or set SUPABASE_DB_URL / PGURI).',
-  );
-}
-
 function findResumeIndex(files: SeedFile[], from: string): number {
   const needle = from.trim();
   return files.findIndex(
@@ -29,21 +23,23 @@ function findResumeIndex(files: SeedFile[], from: string): number {
   );
 }
 
-function printResumeHint(file: SeedFile, keepTriggers: boolean) {
+function printResumeHint(file: SeedFile, keepTriggers: boolean, remote: boolean) {
   const triggersFlag = keepTriggers ? ' --keep-triggers' : '';
   console.log('');
-  console.log(warn('Seeding stopped — the remote schema is intact, only data is incomplete.'));
+  console.log(warn('Seeding stopped — the schema is intact, only data is incomplete.'));
   console.log(info('Resume from the failed file (already-seeded files are skipped):'));
   console.log(
     info(
-      `  SUPABASE_DB_URL='YOUR_DATABASE_URL' supabee db seed-remote --from ${file.basename}${triggersFlag}`,
+      `  supabee seed${remote ? ' --linked' : ''} --from ${file.basename}${triggersFlag}`,
     ),
   );
-  console.log(info('Replace YOUR_DATABASE_URL locally; supabee never prints stored credentials in resume hints.'));
+  if (remote) console.log(info('Use the same database URL as this run; --linked reads SUPABASE_DB_URL / PGURI or prompts securely.'));
 }
 
-export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
-  const dbUrl = resolveDbUrl(options.dbUrl);
+export async function runSeedCommand(options: SeedOptions = {}) {
+  const explicitUrl = explicitDbUrl(options);
+  if (options.linked && explicitUrl) throw new Error('Use either --linked or --url / --db-url, not both.');
+  const remote = options.linked === true || explicitUrl !== undefined;
   const { files, patterns } = discoverSeedFiles({
     configPath: options.configPath,
     supabaseDir: options.supabaseDir,
@@ -55,7 +51,7 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
 
   console.log(
     sectionWithNote(
-      title('Seed remote'),
+      title(remote ? 'Seed remote' : 'Seed local'),
       'Applies split seed files directly via psql. Each file is atomic, so a failure can be resumed with --from.',
     ),
   );
@@ -96,32 +92,32 @@ export async function runSeedRemoteCommand(options: SeedRemoteOptions = {}) {
     return;
   }
 
-  await withPsqlConnection(dbUrl, async (env) => {
-    for (let i = 0; i < queue.length; i += 1) {
-      const file = queue[i];
-      console.log(info(`[${i + 1}/${queue.length}] Seeding ${file.relPath}...`));
-      try {
+  const dbUrl = explicitUrl ?? (remote
+    ? await resolveRemoteDbUrl('supabee seed --linked')
+    : await resolveLocalDbUrl());
+
+  for (let i = 0; i < queue.length; i += 1) {
+    const file = queue[i];
+    console.log(info(`[${i + 1}/${queue.length}] Seeding ${file.relPath}...`));
+    try {
+      if (i === 0) console.log(info(`Target: ${remote ? 'remote' : 'local'} database at ${new URL(dbUrl).hostname}:${new URL(dbUrl).port || '5432'}.`));
+      await withPsqlConnection(dbUrl, async (env) => {
         await runCommand('psql', [
-          '-X',
-          '--single-transaction',
-          '-v',
-          'ON_ERROR_STOP=1',
-          '-c',
-          sessionSetupSql,
-          '-f',
-          file.absPath,
+          '-X', '-w', '--single-transaction', '-v', 'ON_ERROR_STOP=1',
+          '-c', sessionSetupSql,
+          '-f', file.absPath,
         ], {
           env,
-          sensitiveValues: [dbUrl],
+          sensitiveValues: [dbUrl, decodeURIComponent(new URL(dbUrl).password)],
         });
-      } catch (error) {
-        console.log('');
-        console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));
-        printResumeHint(file, options.keepTriggers === true);
-        throw new Error(`Remote seeding failed at ${file.relPath}.`);
-      }
+      });
+    } catch (error) {
+      console.log('');
+      console.log(fail(`Failed seeding ${file.relPath}: ${error instanceof Error ? error.message : String(error)}`));
+      printResumeHint(file, options.keepTriggers === true, remote);
+      throw new Error(`${remote ? 'Remote' : 'Local'} seeding failed at ${file.relPath}.`);
     }
-  });
+  }
 
   console.log('');
   console.log(ok(`Seeded ${queue.length} file(s) successfully.`));

@@ -28,7 +28,7 @@ function parseTomlArrayString(value: string): string[] {
 
 /**
  * Read `sql_paths` from the `[db.seed]` table of a Supabase config.toml.
- * Handles both single-line and multi-line array literals. Returns [] if absent.
+ * Handles single-line and multi-line arrays, defaulting to ./seed.sql if absent.
  */
 export function readSeedSqlPaths(configPath: string): string[] {
   let content: string;
@@ -40,7 +40,7 @@ export function readSeedSqlPaths(configPath: string): string[] {
 
   const lines = content.split('\n');
   const start = lines.findIndex((line) => line.trim() === '[db.seed]');
-  if (start === -1) return [];
+  if (start === -1) return ['./seed.sql'];
 
   for (let i = start + 1; i < lines.length; i += 1) {
     const trimmed = lines[i].trim();
@@ -57,7 +57,7 @@ export function readSeedSqlPaths(configPath: string): string[] {
     return parseTomlArrayString(raw);
   }
 
-  return [];
+  return ['./seed.sql'];
 }
 
 /** Convert one path segment glob (only `*` is special) to an anchored RegExp. */

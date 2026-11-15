@@ -257,7 +257,7 @@ When you enter the URL at the interactive prompt, Supabee offers to add `/postgr
 
 When targeting a remote with `--linked`, the auto-detected cutoff is read from that same remote, so it equals the latest migration already applied there. If you want a different cutoff (or are using `--db-url` to a database other than the linked one), pass the cutoff explicitly.
 
-**Resumable remote datasets.** Both `--linked` and `--db-url` enable resumable seeding automatically. Supabee runs `supabase db reset --no-seed`, seeds the data file-by-file via `psql`, then reapplies the post-cutoff migrations. This requires `psql` and a Direct connection or Session pooler on port 5432. Because each seed file is atomic, a failure rolls that file back and you resume from it with [`db seed-remote --from`](#db-seed-remote) instead of redoing the whole load. The older `--resumable-seed` flag is still accepted but is no longer needed. See [`db seed-remote`](#db-seed-remote) for the seeding mechanics.
+**Resumable remote datasets.** Both `--linked` and `--db-url` (alias `--url`) enable resumable seeding automatically. Supabee runs `supabase db reset --no-seed`, seeds the data file-by-file via `psql`, then reapplies the post-cutoff migrations. This requires `psql` and a Direct connection or Session pooler on port 5432. Because each seed file is atomic, a failure rolls that file back and you resume from it with [`seed --linked --from`](#seed) instead of redoing the whole load. The older `--resumable-seed` flag is still accepted but is no longer needed. See [`seed`](#seed) for the seeding mechanics.
 
 ```bash
 # default re-apply mode: supabase migration up
@@ -281,36 +281,45 @@ SUPABASE_DB_URL="postgresql://...:5432/postgres?sslmode=require" supabee db rese
 supabee db reset --db-url "postgresql://...:5432/postgres?sslmode=require" --yes
 ```
 
-### `db seed-remote`
+### `seed`
 
-Seeds a remote database by running its split seed files **directly via `psql`**, instead of through Supabase's built-in seed step. Built for large datasets where the Supabase seed path times out: it is resumable and leaves the schema healthy on failure.
+Loads seed files into the current local Supabase database, or a remote database with `--linked` / `--url`. It only loads data: it does not reset the schema or apply migrations. Requires `psql`.
+
+Plain `supabee seed` obtains the current project's local database URL from `supabase status`, including its actual port. Start it first with `supabase start`. Remote environment variables never change the target of plain `supabee seed`.
 
 - Reads the ordered file list from `[db.seed].sql_paths` in `supabase/config.toml` (the same list Supabase seeds from) and expands the globs in declared order, lexically sorted.
 - Runs each file atomically with `psql --single-transaction -v ON_ERROR_STOP=1`, streamed from disk (no whole-file buffering), with `statement_timeout = 0` for the session.
 - By default it seeds with `session_replication_role = replica`, which **disables triggers and FK enforcement during the load** — exactly how `pg_dump`/`pg_restore` load a data dump. This stops application triggers from firing (e.g. an `auth.users` insert auto-creating a `profiles` row) and makes cross-file ordering irrelevant (a row can reference a table seeded in a later file). Pass `--keep-triggers` to leave triggers/FK checks live.
-- On failure, the whole failing file rolls back — so the remote schema stays intact and only data is incomplete — and `supabee` prints a `--from` command to resume from that file. Already-seeded files are skipped, and the atomic re-run avoids duplicate rows.
+- On failure, the whole failing file rolls back and `supabee` prints a `--from` command to resume from that file. Earlier files remain committed and are skipped when you supply `--from`. Completion is not tracked automatically; rerunning without `--from` reloads every file.
 
-Connection comes from `--db-url`, or the `SUPABASE_DB_URL` / `PGURI` environment variable. Use **Direct connection** (IPv6) or **Session pooler** (IPv4), both on port 5432. Do not use **Transaction pooler** on port 6543.
+For remote seeding, `--linked` reads `SUPABASE_DB_URL` / `PGURI` from your shell or prompts for a hidden URL, using the same prompt and `[Y/n]` default suggestions as reset. Alternatively, supply `--url <url>` (alias `--db-url`) without `--linked`. Supabee does not automatically load `.env` files. Use **Direct connection** (IPv6) or **Session pooler** (IPv4), both on port 5432; do not use Transaction pooler on port 6543.
 
 | Option | Description |
 | --- | --- |
-| `--db-url <url>` | Postgres connection string (falls back to `SUPABASE_DB_URL` / `PGURI`). |
+| `--linked` | Remote database: read `SUPABASE_DB_URL` / `PGURI` or securely prompt for a URL. |
+| `--url <url>`, `--db-url <url>` | Explicit remote connection string; cannot be combined with `--linked` or each other. |
 | `--from <file>` | Resume from this seed file (inclusive); matches by file name or relative path. |
-| `--dry-run` | Print the ordered seed queue and exit without seeding. |
+| `--dry-run` | Print the ordered seed queue without connecting to a database or prompting for a URL. |
 | `--keep-triggers` | Keep triggers/FK checks active during seeding (default: disabled, like a restore). |
 
 ```bash
 # preview the ordered queue
-supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --dry-run
+supabee seed --dry-run
 
-# seed everything
-supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require"
+# seed the current local project
+supabee seed
+
+# seed a remote database, prompting for its URL when needed
+supabee seed --linked
+
+# supply a remote URL explicitly
+supabee seed --url "postgresql://...:5432/postgres?sslmode=require"
 
 # resume after a timeout at file 015_public_cities_69.sql
-supabee db seed-remote --db-url "postgresql://...:5432/postgres?sslmode=require" --from 015_public_cities_69.sql
+supabee seed --linked --from 015_public_cities_69.sql
 ```
 
-> Remote resets with either `db reset --linked` or `db reset --db-url <url>` use resumable seeding automatically. Reach for `db seed-remote` standalone to resume a failed seed or to seed without a reset.
+> `seed` replaces `db seed-remote`. After resuming an interrupted remote reset, apply the deferred migrations separately against the same database. Standalone seeding never applies migrations.
 
 ### `start`
 
@@ -597,7 +606,7 @@ supabee data --help
 supabee start --help
 supabee db --help
 supabee db reset --help
-supabee db seed-remote --help
+supabee seed --help
 supabee cutoff detect --help
 supabee migration audit --help
 supabee migration mark --help

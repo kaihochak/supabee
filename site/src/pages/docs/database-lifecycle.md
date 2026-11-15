@@ -58,20 +58,27 @@ Both remote commands use resumable seeding automatically and require `psql`. Use
 
 ## Resume a large seed
 
-[`supabee db seed-remote` command reference](/docs/commands/db-seed-remote/)
+[`supabee seed` command reference](/docs/commands/seed/)
 
 Remote seed files run atomically through `psql`. If one fails, resume inclusively from that file:
 
 ```bash
-supabee db seed-remote \
-  --db-url "postgresql://...:5432/postgres?sslmode=require" \
+supabee seed --linked \
   --from 015_public_cities_69.sql
 ```
 
 Preview the ordered queue without writing anything:
 
 ```bash
-supabee db seed-remote --db-url "$SUPABASE_DB_URL" --dry-run
+supabee seed --dry-run
 ```
 
 By default, remote seeding disables triggers and foreign-key enforcement for the load, matching restore behavior. Add `--keep-triggers` when they must stay active.
+
+`--linked` reads `SUPABASE_DB_URL` / `PGURI` or prompts for the same target URL used by the reset. Alternatively, use `supabee seed --url <url> --from <file>`. After all files finish, apply the deferred migrations against that same database:
+
+```bash
+supabase migration up --db-url "$SUPABASE_DB_URL" --yes
+```
+
+To seed an existing local database without resetting it, run `supabee seed`. It discovers the current local project's connection through `supabase status`.

@@ -1,80 +1,106 @@
 ---
 layout: ../../../layouts/DocsLayout.astro
 title: supabee seed
-description: Load ordered seed files into the local Supabase project or a remote database, with file-level resume.
+description: Load seed files into an existing database, or resume an interrupted load.
 eyebrow: Command
 ---
 
-Loads seed files into an existing database without resetting it or applying migrations. The target must already contain the required tables. Reads ordered seed paths from `[db.seed].sql_paths` in `supabase/config.toml` and executes each file through `psql` in its own transaction.
+Use `seed` when the database schema already exists and you only need to load data. To rebuild the schema as well, use [`db reset`](/docs/commands/db-reset/).
 
-## Local seeding
+```bash
+supabee seed [options]
+```
 
-Run from your Supabase project folder:
+## Load data locally
+
+With the local Supabase stack running:
 
 ```bash
 supabee seed
 ```
 
-Supabee obtains this project's database connection from `supabase status`, including its actual port. Start the local project with `supabase start` first. A remote URL in your environment does not change the target of plain `supabee seed`.
+Supabee obtains the connection from the current project's `supabase status` output. Remote environment variables do not change the target of this command. `psql` must be installed and available on your path.
 
-## Remote seeding
+## Load data remotely
 
-Use the same connection flow as `supabee db reset --linked`:
-
-```bash
-supabee seed --linked
-```
-
-Supabee reads `SUPABASE_DB_URL`, then `PGURI`, from the shell environment. If neither is set, it prompts for a database URL with hidden input. Missing `/postgres` and `sslmode=require` settings are suggested with `[Y/n]`; existing settings are preserved. Supabee does not automatically load `.env` files. Non-interactive runs must supply a URL flag or environment variable.
-
-To supply a URL directly, use `--url` or its alias `--db-url`, without `--linked`:
-
-```bash
-supabee seed --url "$SUPABASE_DB_URL"
-```
-
-Use a direct or session-pooler connection on port `5432`, not the transaction pooler on `6543`. See [resume a large seed](/docs/database-lifecycle/#resume-a-large-seed).
-
-## Preview and resume
-
-```bash
-supabee seed --dry-run
-supabee seed --from 015_public_cities.sql
-supabee seed --linked --from 015_public_cities.sql
-```
-
-`--from` accepts a configured seed file's basename or relative path and includes that file in the resumed queue. Resume against the same database and seed files as the failed run. Earlier files are skipped; their completion is not stored or checked automatically.
-
-For each file, `psql` uses `ON_ERROR_STOP`, a single transaction, and no statement timeout. A failing file rolls back on its own; earlier files remain loaded. Resume is file-level, not row-level. Starting again without `--from` reruns every file and may encounter duplicate data.
-
-By default, triggers and foreign-key checks are disabled for the session through `session_replication_role = replica`, which requires a role permitted to set it. Use `--keep-triggers` when they must remain active.
-
-| Option | Effect |
-| --- | --- |
-| `--linked` | Select a remote target and read or prompt for its URL. |
-| `--url <url>`, `--db-url <url>` | Select an explicit remote target. Cannot be combined with `--linked` or each other. |
-| `--from <file>` | Start at this file, inclusively. |
-| `--dry-run` | List files without connecting to a database or prompting for a URL. |
-| `--keep-triggers` | Keep triggers and foreign-key checks active. |
-
-`psql` must be installed and available on your path. After resuming an interrupted remote reset, apply the deferred migrations separately against the same target; `seed` only loads data.
-
-## Project-based remote seeding
+Log in and link the project folder once, then seed the linked project:
 
 ```bash
 supabase login
+supabase link
 supabee seed --remote
-supabee seed --remote=<project-ref> --from <failed-file>
 ```
 
-`--remote` also accepts a branch name/UUID or a Postgres URL using `=`. Project
-and branch targets obtain temporary credentials using `supabase login` or
-`SUPABASE_ACCESS_TOKEN`; no connection URL prompt is shown. Supabee assumes the
-`postgres` role before applying timeout and trigger settings in each session.
-Credentials are refreshed before new file connections when necessary. Failed
-seed SQL is never retried automatically. `--keep-triggers` keeps FK checks and
-triggers active. Dry runs do not resolve authentication or connect.
+You can also select a project, branch, or URL explicitly:
 
-Automatic credentials support the default Supabase cloud profile and use an
-experimental login-role API. Legacy `--linked` / `--url` modes retain their URL
-behavior. Use only one target option.
+```bash
+supabee seed --remote=<project-ref>
+supabee seed --remote=<branch>
+supabee seed --remote="$DATABASE_URL"
+```
+
+The [target selection rules](/docs/commands/db-reset/#choose-the-target) are the same as reset. Project and branch targets reuse Supabase login or `SUPABASE_ACCESS_TOKEN`; no database URL prompt is shown. The selected target must already contain the tables your seed files use.
+
+## Choose and preview seed files
+
+Seed paths come from `supabase/config.toml`. For example:
+
+```toml
+[db.seed]
+sql_paths = ["./seeds/*.sql"]
+```
+
+This loads matching files under `supabase/seeds/`. Patterns are processed in their declared order, matching paths are sorted alphabetically, and duplicate paths are removed. If `sql_paths` is omitted, Supabee uses `supabase/seed.sql`.
+
+Preview the ordered files before loading them:
+
+```bash
+supabee seed --dry-run
+```
+
+Dry runs list files without connecting, looking up credentials, or prompting for a target. The preview uses the same local seed configuration regardless of the database selected.
+
+## Resume from a failed file
+
+Each file runs in its own transaction. If it fails, that file rolls back, earlier files remain committed, and later files are not loaded. Supabee prints the filename and a command to resume.
+
+For a project target:
+
+```bash
+supabee seed --remote=<project-ref> --from 015_public_cities.sql
+```
+
+Use the reference and filename from the failed run. `--from` includes the named file and skips everything before it. Keep the same seed files and target, and preserve `--keep-triggers` if it was used originally.
+
+For a local target, use `supabee seed --from 015_public_cities.sql`. For a URL target, use `supabee seed --remote="$DATABASE_URL" --from 015_public_cities.sql`.
+
+Progress is not stored automatically. Running again without `--from` reloads every file and may encounter duplicate data. Supabee does not automatically retry failed seed SQL.
+
+If this load is resuming a remote reset, finish by applying the waiting migrations:
+
+```bash
+supabase migration up --remote=<project-ref> --yes
+```
+
+Standalone seeding does not apply migrations. See [reset recovery](/docs/commands/db-reset/#resume-a-failed-remote-seed) for URL targets and other reset failures.
+
+## Options
+
+| Option | Effect |
+| --- | --- |
+| `--remote[=<target>]` | Select the linked project, explicit project, branch, or Postgres URL. |
+| `--from <file>` | Start at this file, inclusively. Accepts its filename or relative path. |
+| `--dry-run` | Print the ordered seed queue without connecting. |
+| `--keep-triggers` | Keep triggers and foreign-key checks active during loading. |
+
+Seed sessions disable statement timeouts. By default, they also disable triggers and foreign-key checks so dump data can load across files. Use `--keep-triggers` if those checks must run during the load.
+
+### Connection and compatibility notes
+
+Project targets require Supabase CLI v3 and authentication for the default Supabase cloud profile. Supabee obtains temporary credentials and refreshes them before new file connections when needed. Automatic credentials use an experimental Supabase API; live Supabase validation remains pending.
+
+Explicit remote URLs must use a Direct connection or Session pooler on port `5432`, not the Transaction pooler on `6543`.
+
+`--url <url>` and `--db-url <url>` remain aliases for supplying a remote URL. The older `--linked` mode reads `SUPABASE_DB_URL` / `PGURI` or prompts for a URL; unlike `--remote`, it does not obtain credentials automatically. Use only one target option.
+
+`supabee db seed-remote` no longer loads data. Use `supabee seed` instead.

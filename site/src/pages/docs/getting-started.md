@@ -41,9 +41,10 @@ This creates `supabee.config.json` when it is missing and updates the `[db.seed]
 
 ## Link Supabase
 
-Supabee uses the linked Supabase project for synchronization and automatic cutoff detection.
+Link the project folder to the Supabase project you want to synchronize or select with a bare `--remote` flag.
 
 ```bash
+supabase login
 supabase link
 ```
 

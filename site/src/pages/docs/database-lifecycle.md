@@ -1,84 +1,80 @@
 ---
 layout: ../../layouts/DocsLayout.astro
 title: Database lifecycle
-description: Reset, seed, and start Supabase while preserving the correct migration and seed-data order.
+description: Choose when to start Supabase, rebuild a database, or load seed data.
 eyebrow: Workflows
 ---
 
-Supabase normally applies migrations before loading seed data. That order becomes a problem when newer migrations expect historical production data to already exist. Supabee temporarily defers those migrations and replays them after seeding.
+Choose the command based on what you need to change:
 
-## Reset a local database
+| Task | Command | What it does |
+| --- | --- | --- |
+| Start local Supabase | [`supabee start`](/docs/commands/start/) | Starts the stack with Supabee's migration ordering. |
+| Rebuild a database | [`supabee db reset`](/docs/commands/db-reset/) | Resets the schema, loads seeds, then applies newer migrations. |
+| Load or resume data | [`supabee seed`](/docs/commands/seed/) | Loads seed files into an existing schema. |
 
-[`supabee db reset` command reference](/docs/commands/db-reset/)
+## Why seed order matters
 
-```bash
-supabee db reset
-```
+A seed snapshot represents the database at a particular migration version: the **cutoff**. Migrations written after that version may expect the snapshot's data to exist already.
 
-Supabee resolves a cutoff, defers migrations newer than it, runs `supabase db reset`, restores the migration files, and reapplies the deferred migrations.
+Supabee rebuilds in this order: **schema through the cutoff → seed snapshot → newer migrations**. It temporarily sets aside the newer migrations so they run after the data load.
 
-Pass an explicit migration timestamp when needed:
+If your snapshot includes migrations through `20260309180959`, pass that cutoff explicitly:
 
 ```bash
 supabee db reset 20260309180959
 ```
 
-## Start local Supabase
+You can omit the timestamp to use automatic detection and configuration fallbacks. Read [how the cutoff is resolved](/docs/commands/db-reset/#what-the-cutoff-means) if the snapshot differs from the linked project's current state.
 
-[`supabee start` command reference](/docs/commands/start/)
+## Work locally
 
-`start` uses the same defer-and-replay strategy around `supabase start`:
+Start the stack:
 
 ```bash
 supabee start
-supabee start 20260309180959
 ```
 
-## Reset a remote database
-
-Remote reset is also performed by [`supabee db reset`](/docs/commands/db-reset/); the options below select and protect the target.
-
-> Remote reset is destructive. It wipes the target database's `public` schema and reseeds it from local files. Do not use it against production.
-
-Reset the linked project with resumable seeding:
+With the stack running, choose either a full rebuild or a data load:
 
 ```bash
-supabee db reset --linked
+# Rebuild schema and reload data
+supabee db reset
+
+# Load data into tables that already exist
+supabee seed
 ```
 
-For an explicit connection string:
+Both commands target local by default, even if a remote project is linked or remote URL environment variables are set.
+
+## Rebuild a remote project
+
+Set up authentication and link your project folder once:
 
 ```bash
-supabee db reset \
-  --db-url "postgresql://...:5432/postgres?sslmode=require" \
-  --yes
+supabase login
+supabase link
 ```
 
-Both remote commands use resumable seeding automatically and require `psql`. Use a direct connection or session pooler on port `5432`. Transaction pooler connections on port `6543` are not supported by this workflow.
-
-## Resume a large seed
-
-[`supabee seed` command reference](/docs/commands/seed/)
-
-Remote seed files run atomically through `psql`. If one fails, resume inclusively from that file:
+Then reset the linked project:
 
 ```bash
-supabee seed --linked \
-  --from 015_public_cities_69.sql
+supabee db reset --remote
 ```
 
-Preview the ordered queue without writing anything:
+A remote reset deletes existing application schema and data. Supabee displays the target and asks for confirmation before proceeding. It obtains the seed connection automatically; you do not need to paste a URL. Supabase CLI v3 and `psql` are required.
+
+To choose another project or branch, use `--remote=<project-ref>` or `--remote=<branch>`. See the [reset reference](/docs/commands/db-reset/) for target selection, explicit URLs, and CI usage.
+
+## Recover an interrupted data load
+
+If a remote reset finishes rebuilding the schema but fails while seeding, resume the data load instead of resetting again:
 
 ```bash
-supabee seed --dry-run
+supabee seed --remote=<project-ref> --from 015_public_cities.sql
+supabase migration up --remote=<project-ref> --yes
 ```
 
-By default, remote seeding disables triggers and foreign-key enforcement for the load, matching restore behavior. Add `--keep-triggers` when they must stay active.
+Replace the placeholders with the project reference and failed file reported by the run. The first command reloads the failed file and continues; the second applies the migrations that were waiting for the seed data.
 
-`--linked` reads `SUPABASE_DB_URL` / `PGURI` or prompts for the same target URL used by the reset. Alternatively, use `supabee seed --url <url> --from <file>`. After all files finish, apply the deferred migrations against that same database:
-
-```bash
-supabase migration up --db-url "$SUPABASE_DB_URL" --yes
-```
-
-To seed an existing local database without resetting it, run `supabee seed`. It discovers the current local project's connection through `supabase status`.
+For a load started with `supabee seed` alone, only the first command is needed. See [seeding and resume](/docs/commands/seed/) for local and URL targets, transaction behavior, and trigger settings.

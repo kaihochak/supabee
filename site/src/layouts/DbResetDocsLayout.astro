@@ -1,0 +1,14 @@
+---
+import DocsLayout from './DocsLayout.astro';
+import ResetMigrationOverview from '../components/ResetMigrationOverview.astro';
+---
+
+<DocsLayout {...Astro.props}>
+  <ResetMigrationOverview comparison="reset">
+    <Fragment slot="description">
+      <p><code>supabase db reset</code> applies all migrations before loading seed data. <code>supabee db reset</code> sets newer migrations aside, rebuilds the database and loads the seed data, then applies those newer migrations.</p>
+      <p>For why this ordering is needed, read <a href="/blog/supabee-db-reset/">How to Run Migrations After Seeding with supabase db reset</a>.</p>
+    </Fragment>
+  </ResetMigrationOverview>
+  <slot />
+</DocsLayout>

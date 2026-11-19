@@ -7,20 +7,19 @@ eyebrow: Command
 
 ## What it does
 
-| Step | What Supabee does | Underlying command |
+| Step | What Supabee does | Command |
 | --- | --- | --- |
-| 1 | Resolve the target: local, linked project, explicit project, branch, or URL. | `supabase link` if a project picker is needed; `supabase branches list` for branch lookup |
-| 2 | Resolve the migration cutoff. | `supabase migration list` for automatic detection |
-| 3 | Classify migrations as schema-only, data-only, mixed, or unknown. | Internal SQL analysis |
-| 4 | Split newer mixed migrations when needed, with confirmation, then reclassify. | Internal SQL rewriting |
-| 5 | Set aside migrations after the cutoff and stub historical data-only migrations. | Internal file operations |
-| 6 | Rebuild the database. Local resets include seeding; remote resets skip it. | Local: `supabase db reset` · Remote: `supabase db reset --remote=<target> --no-seed --yes` |
-| 7 | Restore deferred files and original historical SQL, even if reset fails. | Internal file operations |
-| 8 | Load remote seed files, one transaction per file. | `psql --single-transaction -v ON_ERROR_STOP=1 -f <seed-file>` |
-| 9 | Apply migrations after the cutoff. | Local: `supabase migration up` · Remote: `supabase migration up --remote=<target> --yes` |
-| 10 | Print the success or failure summary. | Internal output formatting |
+| 1 | Resolve the target: local, linked project, explicit project, branch, or URL. | [`supabase link`](https://supabase.com/docs/reference/cli/supabase-link) / [`supabase branches list`](https://supabase.com/docs/reference/cli/supabase-branches-list), when needed |
+| 2 | Resolve the migration cutoff. | [`supabee cutoff detect`](/docs/commands/cutoff-detect/) |
+| 3 | Classify migrations and split newer mixed migrations when needed, with confirmation. | [`supabee migration split`](/docs/commands/migration-split/) |
+| 4 | Set aside migrations after the cutoff and stub historical data-only migrations. | Internal |
+| 5 | Rebuild the database. Local resets include seeding; remote resets skip it. | [`supabase db reset`](https://supabase.com/docs/reference/cli/supabase-db-reset) |
+| 6 | Restore deferred files and original historical SQL, even if reset fails. | Internal |
+| 7 | Load remote seed files, one transaction per file. | [`supabee seed`](/docs/commands/seed/) |
+| 8 | Apply migrations after the cutoff. | [`supabase migration up`](https://supabase.com/docs/reference/cli/supabase-migration-up) |
+| 9 | Print the success or failure summary. | Internal |
 
-Supabee supplies the target and connection settings to these commands.
+Supabee uses the shared logic behind its own commands and supplies the target and connection settings to Supabase commands.
 
 ## Usage
 

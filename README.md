@@ -424,16 +424,19 @@ supabee migration unmark --dry-run
 supabee migration unmark --yes
 ```
 
-### `migration split-mixed`
+### `migration split`
 
-Builds a full before/after rewrite plan for mixed migrations. Use `--apply` to execute after confirmation.
+Builds a before/after rewrite plan for mixed migrations newer than the seed cutoff and applies it after confirmation. Cutoff resolution matches `db reset`: explicit timestamp, linked migration alignment, then configuration fallback. Use `--dry-run` to preview without writing or `--all` to consider every mixed migration. Already-applied remote versions remain protected, including with `--all`.
 
 ```bash
 # preview only
-supabee migration split-mixed
+supabee migration split --dry-run
+
+# include every mixed migration in the preview
+supabee migration split --all --dry-run
 
 # apply with interactive confirmation
-supabee migration split-mixed --apply
+supabee migration split
 ```
 
 ### Supabase passthrough

@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import {
-  runMigrationAuditCommand, runMigrationMarkCommand, runMigrationUnmarkCommand, runMigrationSplitMixedCommand,
-  type MigrationAuditOptions, type MigrationMarkOptions, type MigrationUnmarkOptions, type MigrationSplitMixedOptions,
+  runMigrationAuditCommand, runMigrationMarkCommand, runMigrationUnmarkCommand, runMigrationSplitCommand,
+  type MigrationAuditOptions, type MigrationMarkOptions, type MigrationUnmarkOptions, type MigrationSplitOptions,
 } from '../../commands/migration.js';
 
 export function registerMigrationCommand(program: Command): void {
@@ -34,9 +34,13 @@ export function registerMigrationCommand(program: Command): void {
     .action((options: MigrationUnmarkOptions = {}) => runMigrationUnmarkCommand(options));
 
   migrationCommand
-    .command('split-mixed')
-    .description('Preview or apply mixed-migration split rewrites')
+    .command('split [cutoffTimestamp]')
+    .description('Split mixed migrations after the seed cutoff; --all includes every mixed migration')
     .option('--migrations-dir <path>', 'Migrations directory', 'supabase/migrations')
-    .option('--apply', 'Apply planned rewrite after confirmation')
-    .action((options: MigrationSplitMixedOptions = {}) => runMigrationSplitMixedCommand(options));
+    .option('--dry-run', 'Preview planned rewrites without changing files')
+    .option('--all', 'Include mixed migrations at or before the cutoff too')
+    .option('--env <name>', 'Environment key used for postSeedCutoffByEnv fallback lookup')
+    .action((cutoffTimestamp: string | undefined, options: MigrationSplitOptions = {}) =>
+      runMigrationSplitCommand(cutoffTimestamp, options),
+    );
 }

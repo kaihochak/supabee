@@ -101,6 +101,7 @@ Historical end-to-end validation against a disposable Postgres (Docker), before 
 - linked URL input is hidden, malformed/non-5432 URLs are rejected, and cancellation occurs before database access.
 
 ## Known follow-ups
+- [x] Rename standalone `migration split-mixed` to `migration split` and align it with marker commands: preview via `--dry-run`, apply after confirmation by default, and reject the old `--apply` flag. Resolve the cutoff like reset without persisting it, select newer mixed files by default, and require `--all` to include older ones. Preserve the applied-remote guard even with `--all`; verify preview, cancellation, backups, explicit cutoffs, and guarded writes with isolated stubs.
 - [x] Unify local and remote seeding under `supabee seed`, reuse reset's URL prompt, preserve file-level resume, and update help, sidebar, command references, and reset recovery hints. Verify local connection discovery, remote environment isolation, remote URL modes, dry-run, unavailable projects, failure/resume, and command migration guidance with isolated stubs.
 - [x] Fix the full-URI `PGDATABASE` regression using native PostgreSQL connection settings, preserving URI options and credential privacy. Verify the actual `psql` client targets the supplied host and port, plus cleanup and seed/resume behavior.
 - [x] Offer missing database and SSL defaults at the interactive URL prompt with `[Y/n]` confirmation. Preserve explicit settings and declined input without printing credentials; leave flag/environment URLs unchanged.

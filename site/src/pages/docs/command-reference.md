@@ -28,7 +28,7 @@ Choose a command below for its full behavior, options, and examples. The workflo
 - [`supabee migration audit`](/docs/commands/migration-audit/)
 - [`supabee migration mark`](/docs/commands/migration-mark/)
 - [`supabee migration unmark`](/docs/commands/migration-unmark/)
-- [`supabee migration split-mixed`](/docs/commands/migration-split-mixed/)
+- [`supabee migration split`](/docs/commands/migration-split/)
 
 ## Other Supabase commands
 

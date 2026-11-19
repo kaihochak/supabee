@@ -6,6 +6,7 @@ export default defineConfig({
   output: 'static',
   redirects: {
     '/docs/commands/db-seed-remote/': '/docs/commands/seed/',
+    '/docs/commands/migration-split-mixed/': '/docs/commands/migration-split/',
   },
   vite: {
     plugins: [tailwindcss()],

@@ -208,7 +208,7 @@ function persistPostSeedCutoff(cutoffTimestamp: string, envName?: string) {
 
 export async function resolvePostSeedCutoff(
   cutoffTimestampRaw: string | undefined,
-  options: { env?: string; targetArgs?: string[] } = {},
+  options: { env?: string; targetArgs?: string[]; readOnly?: boolean } = {},
 ): Promise<ResolvedCutoff> {
   const envName = options.env?.trim() || undefined;
 
@@ -217,10 +217,10 @@ export async function resolvePostSeedCutoff(
   }
 
   try {
-    const detected = options.targetArgs
+    const detected = options.targetArgs || options.readOnly
       ? await detectCutoffFromLinkedProject(options.targetArgs)
       : await detectCutoffWithAutoLinkRetry();
-    persistPostSeedCutoff(detected, envName);
+    if (!options.readOnly) persistPostSeedCutoff(detected, envName);
     return { value: detected, source: 'linked' };
   } catch (error) {
     const fallback = readConfiguredPostSeedCutoff(envName);

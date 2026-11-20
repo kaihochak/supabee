@@ -5,7 +5,7 @@ description: Detect cutoffs, audit SQL classifications, and split migrations tha
 eyebrow: Workflows
 ---
 
-For command options and examples, see [`migration audit`](/docs/commands/migration-audit/), [`migration mark`](/docs/commands/migration-mark/), [`migration unmark`](/docs/commands/migration-unmark/), and [`migration split-mixed`](/docs/commands/migration-split-mixed/).
+For command options and examples, see [`migration audit`](/docs/commands/migration-audit/), [`migration mark`](/docs/commands/migration-mark/), [`migration unmark`](/docs/commands/migration-unmark/), and [`migration split`](/docs/commands/migration-split/).
 
 Supabee classifies migration files as `schema`, `data`, `mixed`, or `unknown`. Classification is based on SQL patterns and can be overridden with marker comments.
 
@@ -48,17 +48,19 @@ supabee migration unmark --dry-run
 
 ## Split mixed migrations
 
-A post-cutoff migration containing both schema changes and data mutations cannot be safely moved as one unit. Preview Supabee's rewrite plan:
+A post-cutoff migration containing both schema changes and data mutations cannot be safely moved as one unit. The standalone command uses the same cutoff resolution as reset and selects mixed migrations strictly after it. Preview its rewrite plan:
 
 ```bash
-supabee migration split-mixed
+supabee migration split --dry-run
 ```
 
 Apply the plan after interactive confirmation:
 
 ```bash
-supabee migration split-mixed --apply
+supabee migration split
 ```
+
+Use `--all` to include older mixed migrations explicitly; this still refuses to rewrite versions already applied on the linked remote.
 
 ## Detect the cutoff
 

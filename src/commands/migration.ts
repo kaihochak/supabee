@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cutoff.js';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
@@ -31,9 +32,11 @@ export type MigrationUnmarkOptions = {
   yes?: boolean;
 };
 
-export type MigrationSplitMixedOptions = {
+export type MigrationSplitOptions = {
   migrationsDir?: string;
-  apply?: boolean;
+  dryRun?: boolean;
+  all?: boolean;
+  env?: string;
 };
 
 function absoluteMigrationsDir(dir?: string): string {
@@ -373,19 +376,28 @@ export async function runMigrationUnmarkCommand(options: MigrationUnmarkOptions 
   }
 }
 
-export async function runMigrationSplitMixedCommand(options: MigrationSplitMixedOptions = {}) {
+export async function runMigrationSplitCommand(
+  cutoffTimestampRaw: string | undefined,
+  options: MigrationSplitOptions = {},
+) {
+  if (options.all && cutoffTimestampRaw !== undefined) {
+    throw new Error('Use either a cutoff timestamp or --all, not both.');
+  }
   const migrationsDir = absoluteMigrationsDir(options.migrationsDir);
   await ensureDirectoryExists(migrationsDir);
   const results = await classifyMigrations({ migrationsDir });
-  const mixed = results.filter((result) => result.classification === 'mixed');
+  const resolvedCutoff = options.all ? undefined : await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env, readOnly: true });
+  const cutoff = resolvedCutoff ? parseCutoffTimestamp(resolvedCutoff.value) : undefined;
+  const mixed = results.filter((result) => result.classification === 'mixed' && (cutoff === undefined || result.timestamp > cutoff));
 
-  console.log(sectionWithNote(title('Migration split-mixed'), 'Plans and applies mixed migration rewrites.'));
+  console.log(sectionWithNote(title('Migration split'), 'Plans and applies mixed migration rewrites.'));
   console.log(info(`migrationsDir = ${migrationsDir}`));
+  console.log(info(resolvedCutoff ? `cutoff = ${resolvedCutoff.value}` : 'scope = all mixed migrations'));
   console.log(info(`mixedFiles = ${mixed.length}`));
   console.log('');
 
   if (mixed.length === 0) {
-    console.log(ok('No mixed migrations found.'));
+    console.log(ok(resolvedCutoff ? `No mixed migrations found after cutoff ${resolvedCutoff.value}.` : 'No mixed migrations found.'));
     return;
   }
 
@@ -396,9 +408,9 @@ export async function runMigrationSplitMixedCommand(options: MigrationSplitMixed
   const classificationsByFile = new Map(results.map((result) => [result.fileName, result.classification]));
   printMixedSplitPlan(plan, classificationsByFile);
 
-  if (options.apply !== true) {
+  if (options.dryRun === true) {
     console.log('');
-    console.log(info('Preview only. Re-run with `--apply` to write migration rewrites.'));
+    console.log(info('Dry run complete. Run without `--dry-run` to write migration rewrites after confirmation.'));
     return;
   }
 

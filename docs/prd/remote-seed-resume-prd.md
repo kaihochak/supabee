@@ -1,6 +1,6 @@
 # Remote Seed Resume PRD
 
-> **Status: implemented, pending release.** The connection-handling fix, URL-default suggestions, and automatic resumable seeding for `--db-url` are implemented locally. The original `--resumable-seed` flag remains accepted for compatibility. This document reflects the as-built design.
+> **Status: unified seed command implemented, pending release.** `supabee seed` now targets the local project by default; `--linked` or `--url` selects a remote database. The connection-handling fix, URL-default suggestions, and automatic resumable remote resets remain in place. The original `--resumable-seed` flag remains accepted for compatibility.
 
 ## Overview
 Provide a reliable remote seeding workflow for Supabase projects where `supabase db reset` seeding can time out on large datasets. The feature adds a resumable direct-`psql` seeding path and orchestrates it with the existing post-seed migration logic.
@@ -25,36 +25,55 @@ So the resumable path **separates the two**:
 
 ## Commands
 
-### `supabee db seed-remote` (core primitive, resumable)
+### `supabee seed` (shared local and remote primitive, resumable)
+
+Without a remote option, reads the current local project's connection from `supabase status` JSON, including its actual port. Remote environment URLs never select a remote target implicitly. Supports legacy `DB_URL` and newer `env.DB_URL` status output, using `--output-format` if the installed CLI rejects `--output`. The local project must already be running.
+
+`--linked` reuses the reset URL resolver: shell environment first, then hidden interactive input and optional `[Y/n]` defaults. `--url` (alias `--db-url`) supplies an explicit remote URL and is mutually exclusive with `--linked`. No `.env` file loading is added. This command does not reset schemas or run migrations.
+
 1. Reads ordered seed files from `[db.seed].sql_paths` in `supabase/config.toml` (the same list Supabase seeds from), expanding globs in declared order, lexically sorted.
    - *Change from MVP:* the file list is derived from `config.toml` rather than hardcoded `seeds/split` / `seeds/institutions` paths, so it stays in sync with the project's own seed config.
 2. Options:
-   - `--db-url <url>`: Postgres connection string (falls back to `SUPABASE_DB_URL` / `PGURI` env).
-     - *Change from MVP:* the connection is delivered via `--db-url` (env is a fallback) instead of a required `PGURI` env var, for consistency with `db reset --db-url`.
+   - `--linked`: obtain a remote URL from `SUPABASE_DB_URL` / `PGURI` or the shared hidden prompt.
+   - `--url <url>` / `--db-url <url>`: explicit remote Postgres connection string.
    - `--from <file>`: resume from this file (inclusive); matches by file name or relative path.
-   - `--dry-run`: print the ordered queue and exit.
+   - `--dry-run`: print the ordered queue without connecting or prompting.
 3. Each file runs atomically: `psql --single-transaction -v ON_ERROR_STOP=1 -f <file>`, streamed from disk, with `statement_timeout = 0` (`PGOPTIONS=-c statement_timeout=0`).
    - *Change from MVP:* atomic-per-file replaces the planned "conflict-tolerant INSERT rewrite". Because a timeout rolls the whole file back, resume re-runs the file cleanly with no duplicate rows — no SQL rewriting required.
 4. By default the seeding session also sets `session_replication_role = replica`, disabling user triggers and FK enforcement during the load (added to `PGOPTIONS`). This matches `pg_dump`/`pg_restore` semantics and fixes two real failures seen on production-shaped seeds:
    - application triggers firing during seeding (e.g. an `auth.users` insert auto-creating a `profiles` row that FK-references a not-yet-seeded table);
    - cross-file FK ordering (a row referencing a table whose data is in a later seed file).
    `--keep-triggers` opts out and leaves triggers/FK checks live. Requires a role permitted to set `session_replication_role` (Supabase's `postgres` role normally is).
-5. On failure, prints a credential-free `--from` resume command using a visible `YOUR_DATABASE_URL` placeholder.
+5. On failure, prints `supabee seed --from <file>` for local targets, or `supabee seed --linked --from <file>` for remote targets, with a reminder to supply the same remote URL. No credentials are printed. Completion is not tracked automatically; `--from` skips earlier files by position.
 
 ### `supabee db reset --db-url` / `--linked` (orchestrated path)
 All remote targets enable resumable seeding automatically. An explicit target supplies `--db-url <url>`; a linked target obtains a port-5432 URL from `SUPABASE_DB_URL` / `PGURI`, or a hidden interactive prompt. Explicit URLs are also validated before any database access. The prompt directs IPv6 users to Direct connection and IPv4 users to Session pooler. Flow:
 1. Reuse existing cutoff resolution + defer/restore migration behavior.
 2. Run `supabase db reset --db-url <url> --no-seed --yes`.
-3. Run the `seed-remote` step.
+3. Run the shared `seed` loader against that same URL.
 4. Reapply deferred post-cutoff migrations (`supabase migration up --db-url <url> --yes`).
 5. On seed failure: stop before the migration reapply, surface the `--from` resume command, and note that after seeding completes the post-cutoff migrations still need applying.
 
+## Project-based targets (Supabase CLI v3)
+
+`supabee db reset --remote` and `supabee seed --remote` resolve the linked project,
+while `--remote=<project-ref|branch|postgres-url>` selects an explicit target.
+Project and branch targets reuse the default-profile Supabase login or an access
+token to obtain temporary credentials. They do not request a separate URL or read
+URL environment settings. Reset checks the seed connection after confirmation,
+then obtains fresh credentials after rebuilding. Seed connections refresh before
+new file loads as needed, and failures print a project-specific resume command.
+The login-role API is experimental; live validation remains a follow-up below.
+Legacy `--linked` and URL flags retain the behavior documented above.
+
 ## CLI Interface
-1. `supabee db seed-remote [--db-url <url>] [--from <file>] [--dry-run]`
+1. `supabee seed [--linked | --url <url>] [--from <file>] [--dry-run] [--keep-triggers]`
 2. `supabee db reset [cutoffTimestamp] --db-url <url> [--yes]`
 3. `supabee db reset [cutoffTimestamp] --linked [--yes]`
 
 Notes:
+- `db seed-remote` is replaced; calling it shows migration guidance without forwarding credentials. Its documentation URL redirects to the unified seed reference.
+- `db reset` also accepts `--url` as an alias for `--db-url`.
 - `--linked` prompts for the URL with hidden input and shows its hostname in the destructive confirmation. Non-interactive runs require `SUPABASE_DB_URL` or `PGURI`.
 - `--resumable-seed` without a remote target fails with an actionable message.
 - Use Direct connection (IPv6) or Session pooler (IPv4), both on port 5432. Transaction pooler on port 6543 is unsupported.
@@ -82,6 +101,8 @@ Historical end-to-end validation against a disposable Postgres (Docker), before 
 - linked URL input is hidden, malformed/non-5432 URLs are rejected, and cancellation occurs before database access.
 
 ## Known follow-ups
+- [x] Rename standalone `migration split-mixed` to `migration split` and align it with marker commands: preview via `--dry-run`, apply after confirmation by default, and reject the old `--apply` flag. Resolve the cutoff like reset without persisting it, select newer mixed files by default, and require `--all` to include older ones. Preserve the applied-remote guard even with `--all`; verify preview, cancellation, backups, explicit cutoffs, and guarded writes with isolated stubs.
+- [x] Unify local and remote seeding under `supabee seed`, reuse reset's URL prompt, preserve file-level resume, and update help, sidebar, command references, and reset recovery hints. Verify local connection discovery, remote environment isolation, remote URL modes, dry-run, unavailable projects, failure/resume, and command migration guidance with isolated stubs.
 - [x] Fix the full-URI `PGDATABASE` regression using native PostgreSQL connection settings, preserving URI options and credential privacy. Verify the actual `psql` client targets the supplied host and port, plus cleanup and seed/resume behavior.
 - [x] Offer missing database and SSL defaults at the interactive URL prompt with `[Y/n]` confirmation. Preserve explicit settings and declined input without printing credentials; leave flag/environment URLs unchanged.
 - [x] Verify the automatic explicit-URL remote reset path, legacy flag compatibility, linked and local behavior, seed failure/resume, and invalid URL rejection with isolated command stubs.
@@ -90,3 +111,13 @@ Historical end-to-end validation against a disposable Postgres (Docker), before 
 - [x] Preserve multiline INSERT values containing semicolons and blank lines; distinguish quoted data from SQL commands and sequence statements. Verify LF/CRLF inputs, quote escapes, dollar quotes, comments, row chunking, and standard-conforming values ending in backslashes.
 - [x] Redact connection strings in subprocess error output and keep direct `psql` connection URLs out of process arguments.
 - `--strict` / non-strict modes from the original MVP were not needed: seeding always stops on the first failing file (the only safe default for a resumable workflow).
+
+## Project target resolution tasks
+
+- [x] Keep plain `supabee db reset` local and print its target explicitly. Verify that remote project/URL environment settings do not retarget reset or migration replay; preserve seed-snapshot cutoff detection.
+- [x] Implement reusable linked-project identity lookup: `SUPABASE_PROJECT_ID` → saved `supabase/.temp/project-ref` → interactive Supabase project picker; fail in noninteractive mode without a selection. Return the validated project reference and its source. Preserve the saved link when environment selection wins; stop on invalid references, unreadable files, and cancelled pickers.
+- [x] Verify lookup precedence, whitespace handling, invalid references, missing selections, picker persistence/cancellation, and the `supabase link` subprocess working directory with isolated tests. Document identity-only behavior and picker persistence requirements without contacting a live project.
+- [x] Integrate linked-project lookup into `db reset --remote` and forward the resolved project reference consistently to cutoff detection, reset, and migration replay. Verify environment/saved-link precedence, explicit project/branch/URL forwarding, and local isolation with command stubs. Project targets now use automatic seed credentials and ignore URL environment settings.
+- [x] Integrate automatic project-based seed credentials into reset and standalone seed/resume. Reuse the environment token or default-profile Supabase login from OS keyring/token file; preflight role and trigger setup after confirmation and before reset, obtain fresh credentials after reset, and refresh before new file connections. Preserve URL-free resume hints and explicit URL/local behavior; verify with isolated API, socket, and subprocess stubs.
+- [x] Extract CLI command registration and help into command modules; keep the entry point focused on startup, parsing, and errors. Reuse handler option types and derive passthrough routing from registered commands. Verify unchanged help/version output, mocked forwarding, and existing CLI regression coverage.
+- [ ] Validate temporary-role permissions, credential propagation, expiry/refresh, and trigger handling against a disposable live Supabase project. Nondefault cloud profiles continue to require an explicit URL.

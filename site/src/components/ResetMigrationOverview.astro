@@ -1,0 +1,19 @@
+---
+import MigrationSequence from './MigrationSequence.astro';
+
+interface Props {
+  comparison?: 'reset' | 'push';
+}
+
+const { comparison = 'push' } = Astro.props;
+const variants = comparison === 'reset'
+  ? ['reset-conflict', 'supabee-reset'] as const
+  : ['supabee-reset', 'db-push'] as const;
+---
+
+<slot name="description">
+  <p>Supabee finds the migration cutoff represented by your seed data and temporarily sets newer migrations aside. It runs <code>supabase db reset</code> to load the seed against the matching schema, then restores and applies those newer migrations with <code>supabase migration up</code>.</p>
+</slot>
+<div class="my-8 grid w-full gap-8 md:grid-cols-2 md:gap-5">
+  {variants.map((variant) => <MigrationSequence variant={variant} id={`reset-overview-${variant}`} />)}
+</div>

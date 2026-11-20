@@ -1,7 +1,8 @@
 import fs from 'node:fs';
+import { verifyProjectSeedConnection } from '../lib/project-seed-connection.js';
+import { resolveResetRemote } from '../lib/reset-target.js';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { Writable } from 'node:stream';
 import { stdin as input, stdout as output } from 'node:process';
 import { runCommand } from '../lib/subprocess.js';
 import { sectionWithNote, title, info, ok, fail, warn } from '../lib/ui.js';
@@ -9,8 +10,8 @@ import { parseCutoffTimestamp, resolvePostSeedCutoff } from '../lib/post-seed-cu
 import { classifyMigrations } from '../lib/migration-classifier.js';
 import { applyMixedSplitPlan, buildMixedSplitPlan, type MixedSplitPlan } from '../lib/mixed-migration-splitter.js';
 import { renderResetSummary, type ClassifiedMigrationLite } from '../lib/reset-summary.js';
-import { runSeedRemoteCommand } from './seed-remote.js';
-import { confirmDbUrlDefaults } from '../lib/db-url-defaults.js';
+import { runSeedCommand } from './seed.js';
+import { explicitDbUrl, resolveRemoteDbUrl, validateRemoteDbUrl } from '../lib/remote-db-url.js';
 
 export type PostSeedCommandOptions = {
   psql?: boolean;
@@ -18,8 +19,10 @@ export type PostSeedCommandOptions = {
   tempDir?: string;
   env?: string;
   strictMixed?: boolean;
+  remote?: boolean | string;
   linked?: boolean;
   dbUrl?: string;
+  url?: string;
   yes?: boolean;
   resumableSeed?: boolean;
   keepTriggers?: boolean;
@@ -29,10 +32,7 @@ type RemoteTarget = { args: string[]; label: string; isDbUrl: boolean };
 
 function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions): RemoteTarget | null {
   const linked = options.linked === true;
-  const dbUrl = options.dbUrl?.trim();
-  if (options.dbUrl !== undefined && !dbUrl) {
-    throw new Error('--db-url requires a non-empty Postgres connection string.');
-  }
+  const dbUrl = explicitDbUrl(options);
   if (!linked && !dbUrl) return null;
 
   if (mode !== 'reset') {
@@ -48,72 +48,6 @@ function resolveRemoteTarget(mode: PostSeedMode, options: PostSeedCommandOptions
   return dbUrl
     ? { args: ['--db-url', validateRemoteDbUrl(dbUrl), '--yes'], label: 'remote (--db-url)', isDbUrl: true }
     : { args: ['--linked', '--yes'], label: 'linked remote project', isDbUrl: false };
-}
-
-function validateRemoteDbUrl(value: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error('Invalid database URL. Expected postgresql://user:password@host:5432/postgres?sslmode=require.');
-  }
-
-  if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !parsed.hostname) {
-    throw new Error('Invalid database URL. Expected a postgres:// or postgresql:// connection string.');
-  }
-  if (parsed.port && parsed.port !== '5432') {
-    throw new Error('Use Direct connection or Session pooler on port 5432, not Transaction pooler on port 6543.');
-  }
-  return value;
-}
-
-async function promptForSecret(question: string): Promise<string> {
-  let muted = false;
-  const silentOutput = new Writable({
-    write(chunk, _encoding, callback) {
-      if (!muted) output.write(chunk);
-      callback();
-    },
-  });
-  const rl = readline.createInterface({ input, output: silentOutput, terminal: true });
-  try {
-    const answerPromise = rl.question(question);
-    muted = true;
-    const answer = await answerPromise;
-    muted = false;
-    output.write('\n');
-    return answer;
-  } finally {
-    rl.close();
-  }
-}
-
-async function resolveLinkedDbUrl(): Promise<string> {
-  const fromEnv = process.env.SUPABASE_DB_URL?.trim() || process.env.PGURI?.trim();
-  if (fromEnv) return validateRemoteDbUrl(fromEnv);
-
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new Error(
-      '`supabee db reset --linked` needs a port-5432 database URL for resumable seeding.\n' +
-        'Set SUPABASE_DB_URL or PGURI to a Direct connection (IPv6) or Session pooler (IPv4) URI.',
-    );
-  }
-
-  console.log(info('Database URL required. Find it in Supabase Dashboard -> your project -> Connect.'));
-  console.log(info('  IPv6 available: use Direct connection (port 5432).'));
-  console.log(info('  IPv4 only:      use Session pooler (port 5432).'));
-  console.log(info('  Do not use Transaction pooler (port 6543).'));
-  console.log(info('Copy the URI and replace [YOUR-PASSWORD] with your database password.'));
-  console.log(info('Input is hidden.'));
-  const dbUrl = (await promptForSecret('Database URL: ')).trim();
-  if (!dbUrl) throw new Error('Database URL is required for a linked remote reset.');
-  validateRemoteDbUrl(dbUrl);
-  const rl = readline.createInterface({ input, output });
-  try {
-    return await confirmDbUrlDefaults(dbUrl, (question) => rl.question(question));
-  } finally {
-    rl.close();
-  }
 }
 
 async function confirmRemoteReset(target: RemoteTarget, options: PostSeedCommandOptions): Promise<boolean> {
@@ -251,9 +185,18 @@ async function runPostSeedCommand(
   cutoffTimestampRaw: string | undefined,
   options: PostSeedCommandOptions = {},
 ) {
-  let remoteTarget = resolveRemoteTarget(mode, options);
+  if (options.remote !== undefined && (options.linked || explicitDbUrl(options))) {
+    throw new Error('Use --remote, --linked, or --db-url / --url, not multiple target options.');
+  }
+  if (options.remote !== undefined && (mode !== 'reset' || options.psql)) {
+    throw new Error('--remote is only supported by db reset and cannot be combined with --psql.');
+  }
+  const resolvedRemote = options.remote !== undefined ? await resolveResetRemote(options.remote) : null;
+  let remoteTarget = resolvedRemote
+    ? { args: [...resolvedRemote.targetArgs, '--yes'], label: resolvedRemote.label, isDbUrl: true }
+    : resolveRemoteTarget(mode, options);
   const linkedTarget = options.linked === true;
-  let effectiveDbUrl = options.dbUrl?.trim();
+  let effectiveDbUrl = resolvedRemote?.dbUrl ?? explicitDbUrl(options);
   const resumableSeed = remoteTarget !== null || options.resumableSeed === true;
 
   if (resumableSeed && !remoteTarget) {
@@ -261,7 +204,7 @@ async function runPostSeedCommand(
   }
 
   if (linkedTarget) {
-    effectiveDbUrl = await resolveLinkedDbUrl();
+    effectiveDbUrl = await resolveRemoteDbUrl('supabee db reset --linked');
     remoteTarget = {
       args: ['--db-url', effectiveDbUrl, '--yes'],
       label: `linked remote project at ${new URL(effectiveDbUrl).hostname} (resumable seed)`,
@@ -269,7 +212,7 @@ async function runPostSeedCommand(
     };
   }
 
-  if (resumableSeed && !effectiveDbUrl) {
+  if (resumableSeed && !effectiveDbUrl && !resolvedRemote?.projectRef) {
     throw new Error('--resumable-seed requires --db-url, SUPABASE_DB_URL, or PGURI.');
   }
 
@@ -279,9 +222,13 @@ async function runPostSeedCommand(
       console.log(info('Aborted. No changes made.'));
       return;
     }
+  } else if (mode === 'reset') {
+    console.log(info('Target: local database'));
   }
 
-  const resolvedCutoff = await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env });
+  if (resolvedRemote?.projectRef) await verifyProjectSeedConnection(resolvedRemote.projectRef, options.keepTriggers);
+
+  const resolvedCutoff = await resolvePostSeedCutoff(cutoffTimestampRaw, { env: options.env, targetArgs: resolvedRemote?.targetArgs });
   const resolvedCutoffRaw = resolvedCutoff.value;
   const cutoff = parseCutoffTimestamp(resolvedCutoffRaw);
 
@@ -382,7 +329,7 @@ async function runPostSeedCommand(
 
   const cutoffSourceSuffix =
     resolvedCutoff.source === 'linked'
-      ? ' (auto-detected from linked project)'
+      ? resolvedRemote ? ' (auto-detected from selected target)' : ' (auto-detected from linked project)'
       : resolvedCutoff.source === 'config'
         ? ' (from postSeedCutoff in config)'
         : '';
@@ -428,7 +375,7 @@ async function runPostSeedCommand(
 
   if (remoteTarget) {
     console.log(info(`Target: ${remoteTarget.label}`));
-    if (remoteTarget.isDbUrl && !linkedTarget && resolvedCutoff.source === 'linked') {
+    if (remoteTarget.isDbUrl && !linkedTarget && !resolvedRemote && resolvedCutoff.source === 'linked') {
       console.log(
         warn(
           'Cutoff was auto-detected from the linked project, which may differ from the --db-url target. Pass an explicit cutoff if they are not the same database.',
@@ -537,12 +484,12 @@ async function runPostSeedCommand(
   if (failedStep === 0 && resumableSeed) {
     try {
       console.log('');
-      await runSeedRemoteCommand({ dbUrl: effectiveDbUrl, keepTriggers: options.keepTriggers });
+      await runSeedCommand({ dbUrl: effectiveDbUrl, projectRef: resolvedRemote?.projectRef, keepTriggers: options.keepTriggers });
     } catch (error) {
       failedStep = 4;
       stepLabel = 'seed remote (psql)';
       failureMessage = error instanceof Error ? error.message : String(error);
-      const migrationTarget = linkedTarget ? '--linked --yes' : "--db-url 'YOUR_DATABASE_URL' --yes";
+      const migrationTarget = resolvedRemote ? `${resolvedRemote.targetArgs[0].includes('postgres') ? '--remote=YOUR_DATABASE_URL' : resolvedRemote.targetArgs[0]} --yes` : linkedTarget ? '--linked --yes' : "--db-url 'YOUR_DATABASE_URL' --yes";
       console.log(
         warn(`Once seeding is complete, finish by applying the post-cutoff migrations: supabase migration up ${migrationTarget}`),
       );

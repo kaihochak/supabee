@@ -29,9 +29,13 @@ reviewing the release PR, including migration requirements that generated summar
 - Data splitting preserves multiline SQL values containing semicolons, blank lines, and standard-conforming values ending in backslashes instead of truncating or corrupting seed rows.
 
 ### Changed
+- Added `--remote[=<project-ref|branch|postgres-url>]` to reset and seed. Project targets reuse Supabase login for temporary seed credentials, check the seed connection before reset, refresh credentials, and print project-based resume commands without requiring a database URL.
+- Added `supabee seed` for the current local Supabase project and `supabee seed --linked` for remote seeding with the same hidden URL prompt as reset. `--url` and `--db-url` select an explicit remote target; reset also accepts `--url`. Both local and remote seeding reuse the same file-level transaction and resume behavior.
 - The interactive linked-reset URL prompt now suggests a missing `/postgres` database or `sslmode=require` setting and asks `[Y/n]` before applying them. Existing settings and non-interactive URLs are preserved.
 
 ### Breaking Changes
+- `supabee migration split` replaces `supabee migration split-mixed` and applies rewrites after confirmation by default. Use `--dry-run` to preview; `--apply` is no longer accepted. Standalone splitting now resolves the seed cutoff like reset and selects newer mixed migrations; `--all` explicitly includes older ones while retaining applied-history protection.
+- Replaced `supabee db seed-remote` with `supabee seed --linked` or `supabee seed --url <url>`. Plain `supabee seed` always targets the local project; environment URLs are only read with `--linked`. Update scripts using the old command.
 - Remote resets using `--db-url` now use resumable file-by-file seeding automatically, matching `--linked`. Remote resets require `psql` and a Direct connection or Session pooler on port 5432. The existing `--resumable-seed` flag remains accepted for compatibility.
 
 ## [0.6.2] - 2026-09-04

@@ -100,8 +100,8 @@ export function summarizeMigrationAlignment(rows: MigrationListRow[]): Migration
   };
 }
 
-export async function readLinkedMigrationAlignment(): Promise<MigrationAlignment> {
-  const { stdout } = await runCommandCapture('supabase', ['migration', 'list', '--linked']);
+export async function readLinkedMigrationAlignment(targetArgs: string[] = ['--linked']): Promise<MigrationAlignment> {
+  const { stdout } = await runCommandCapture('supabase', ['migration', 'list', ...targetArgs], { sensitiveValues: targetArgs.filter((arg) => arg.includes('postgres')).map((arg) => arg.replace(/^--remote=/, '')) });
   const rows = parseMigrationListOutput(stdout);
   if (rows.length === 0) {
     throw new Error(
@@ -112,8 +112,8 @@ export async function readLinkedMigrationAlignment(): Promise<MigrationAlignment
   return summarizeMigrationAlignment(rows);
 }
 
-async function detectCutoffFromLinkedProject(): Promise<string> {
-  const alignment = await readLinkedMigrationAlignment();
+async function detectCutoffFromLinkedProject(targetArgs?: string[]): Promise<string> {
+  const alignment = await readLinkedMigrationAlignment(targetArgs);
 
   if (!alignment.latestAligned) {
     throw new Error(
@@ -208,7 +208,7 @@ function persistPostSeedCutoff(cutoffTimestamp: string, envName?: string) {
 
 export async function resolvePostSeedCutoff(
   cutoffTimestampRaw: string | undefined,
-  options: { env?: string } = {},
+  options: { env?: string; targetArgs?: string[]; readOnly?: boolean } = {},
 ): Promise<ResolvedCutoff> {
   const envName = options.env?.trim() || undefined;
 
@@ -217,8 +217,10 @@ export async function resolvePostSeedCutoff(
   }
 
   try {
-    const detected = await detectCutoffWithAutoLinkRetry();
-    persistPostSeedCutoff(detected, envName);
+    const detected = options.targetArgs || options.readOnly
+      ? await detectCutoffFromLinkedProject(options.targetArgs)
+      : await detectCutoffWithAutoLinkRetry();
+    if (!options.readOnly) persistPostSeedCutoff(detected, envName);
     return { value: detected, source: 'linked' };
   } catch (error) {
     const fallback = readConfiguredPostSeedCutoff(envName);

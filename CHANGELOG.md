@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Release Please generates versioned entries. Preserve the detailed notes below when
 reviewing the release PR, including migration requirements that generated summaries may omit.
 
+## [0.8.0](https://github.com/kaihochak/supabee/compare/v0.7.0...v0.8.0) (2026-11-20)
+
+
+### Features
+
+* align migration split with reset cutoff behavior ([f33952e](https://github.com/kaihochak/supabee/commit/f33952ee100ed739761d67bfe226d145c88a3728))
+* resolve remote seed credentials from Supabase login ([b8819e9](https://github.com/kaihochak/supabee/commit/b8819e9238d2dac0a99d1887b146df0e78616159))
+* unify local and remote seeding ([a21b289](https://github.com/kaihochak/supabee/commit/a21b289ff84a3f06b040ddd6589e72effe218bdd))
+
 ## [0.7.0](https://github.com/kaihochak/supabee/compare/v0.6.2...v0.7.0) (2026-11-02)
 
 
